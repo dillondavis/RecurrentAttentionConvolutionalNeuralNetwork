@@ -11,7 +11,7 @@ from PIL import Image
 
 class CUBS2011(data.Dataset):
     def __init__(self, root, split='train', transform=False):
-        self.root = os.path.join(root, 'CUBS')
+        self.root = root
         self.split = split
         self._transform = transform
         self.mean = [0.485, 0.456, 0.406]
@@ -30,6 +30,7 @@ class CUBS2011(data.Dataset):
                 split = line.split()
                 if split[1] == desired_split and split[0] not in self.bw_image_ids:
                     image_ids.append(split[0])
+        return image_ids
 
     def get_id_to_file(self):
         id_to_file = {}
@@ -42,7 +43,7 @@ class CUBS2011(data.Dataset):
 
     def get_id_to_label(self):
         id_to_label = {}
-        lbl_file = os.path.join(self.root, 'images_class_labels.txt')
+        lbl_file = os.path.join(self.root, 'image_class_labels.txt')
         with open(lbl_file) as f:
             for line in f:
                 split = line.split()
@@ -78,12 +79,15 @@ class CUBS2011(data.Dataset):
 
     def transform(self, img, lbl):
         new_img = transforms.Compose([
-            transforms.RandomHorizontalFlip(),
+            transforms.Scale(256),
+            transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize(
-            mean=self.mean, std=self.std)
+                mean=self.mean, std=self.std
+            )
         ])(img)
-        return new_img, torch.from_numpy(lbl).float()
+
+        return new_img, lbl
 
 
 def train_loader_cubs(path, batch_size, num_workers=4, pin_memory=False, normalize=None, transform=False):

@@ -9,12 +9,12 @@ class VGG(nn.Module):
     VGG16 with Fine Grained Classification Head
     """
     def __init__(self, num_classes):
-        super(VGGFeatures, self).__init__()
+        super(VGG, self).__init__()
         base_model = models.vgg16(pretrained=True)
         base_features = base_model.features
         self.features = nn.Sequential(*base_features)
         self.n_features = 512 * 7 * 7
-        self.classifer = nn.Sequential(
+        self.classifier = nn.Sequential(
             nn.Linear(512 * 7 * 7, 4096),
             nn.ReLU(True),
             nn.Dropout(),
@@ -46,9 +46,13 @@ class APN(nn.Module):
         super(APN, self).__init__()
         self.fc1 = nn.Linear(n_features, 1024)
         self.fc2 = nn.Linear(1024, 3)
+        self.regressor = nn.Tanh()
 
-    def forward(self, x):
-        return self.fc1(self.fc2(x))
+    def forward(self, x, im_size):
+        params = self.fc2(self.fc1(x))
+        params = (self.regressor(params) + 1) / 2
+        params *= im_size 
+        return params
 
 
 class CropUpscale(nn.Module):
@@ -62,31 +66,43 @@ class CropUpscale(nn.Module):
 
     def forward(self, x, crop_params):
         h, w = x.size(2), x.size(3)
-        tx, ty, half_width = crop_params[0,0], crop_params[0, 1], crop_params[0, 2]
-        txtl, txbr = tx - half_width, tx + half_width
-        tytl, tybr = ty - half_width, ty + half_width
+        tx, ty, half_width = crop_params[0,0], crop_params[0, 1], crop_params[0, 2]/2
+        txtl = torch.clamp(tx - half_width, min=0)
+        txbr = torch.clamp(tx + half_width, max=h-1)
+        tytl = torch.clamp(ty - half_width, min=0)
+        tybr = torch.clamp(ty + half_width, max=w-1)
         xtl, xbr, ytl, ybr = self.get_noise_shifted_coords(h, w, txtl, txbr, tytl, tybr)
 
         Mx = torch.sigmoid(np.inf * xtl) - torch.sigmoid(np.inf * xbr)
         My = torch.sigmoid(np.inf * ytl) - torch.sigmoid(np.inf * ybr)
         M = torch.abs(torch.ger(Mx, My))
         masked_x = M * x
-        crop_x = masked_x[:, :, th:bh, lw:rw]
+        tlx, brx = int(txtl.data[0]), int(txbr.data[0])
+        tly, bry = int(tytl.data[0]), int(tybr.data[0])
+        crop_x = masked_x[:, :, tlx:brx, tly:bry]
         up_x = self.up(crop_x)
         return up_x
 
     def get_noise_shifted_coords(self, h, w, txtl, txbr, tytl, tybr):
         noise = 0.000001
-        xs = torch.arange(0, h)
-        ys = torch.arange(0, w)
+        xs = torch.autograd.Variable(torch.arange(0, h).cuda())
+        ys = torch.autograd.Variable(torch.arange(0, w).cuda())
         xtl = xs - txtl
         xbr = xs - txbr
         ytl = ys - tytl
         ybr = ys - tybr
+        ''' 
+        Bug workaround from https://github.com/JannerM/intrinsics-network/issues/3
+        for the following code
         xtl[xtl == 0] += noise
         xbr[xbr == 0] -= noise
         ytl[ytl == 0] += noise
         ybr[ybr == 0] -= noise
+        '''
+        xtl = xtl + ((xtl==0)==1).float()*noise
+        xbr = xbr - ((xbr==0)==1).float()*noise
+        ytl = ytl + ((ytl==0)==1).float()*noise
+        ybr = ybr - ((ybr==0)==1).float()*noise
         return xtl, xbr, ytl, ybr
 
 
@@ -106,13 +122,13 @@ class RACNN3(nn.Module):
         :param input: (1, 3, h, w) np array batch of images to find class wise scores of
         :return: (1, num_classes) np array of class wise scores per image
         """
+        h, w = x.size(2), x.size(3)
         scores1, feats1 = self.cnn1(x)
-        crop_params1 = self.apn1(feats1)
+        crop_params1 = self.apn1(feats1, h)
         crop_x = self.cropup(x, crop_params1)
         scores2, feats2 = self.cnn2(crop_x)
-        crop_params2 = self.apn2(feats2)
+        crop_params2 = self.apn2(feats2, h)
         crop_x = self.cropup(x, crop_params2)
         scores3, _ = self.cnn3(x)
         return scores1, scores2, scores3
-
 

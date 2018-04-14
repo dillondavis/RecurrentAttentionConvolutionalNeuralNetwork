@@ -1,13 +1,17 @@
 """Training manager and multi optimizer for training PyTorch models"""
 import json
 import torch
+import dataset
+import utils
 import torch.nn as nn
 import torch.nn.functional as F
 import torchnet as tnt
 import numpy as np
+
 from PIL import Image
 from tqdm import tqdm
 from torch.autograd import Variable
+
 
 
 class RankLoss(nn.Module):
@@ -16,10 +20,9 @@ class RankLoss(nn.Module):
         self.margin = margin
 
     def forward(self, scores1, scores2, target):
-        zero = torch.autograd.Variable(torch.Tensor([0]))
-        ps1 = F.softmax(scores1)[target]
-        ps2 = F.softmax(scores2)[target]
-        return torch.max(zero,  ps1 - ps2 + self.margin)
+        ps1 = F.softmax(scores1)[:, target.long().data]
+        ps2 = F.softmax(scores2)[:, target.long().data]
+        return torch.clamp(ps1 - ps2 + self.margin, min=0)
 
 
 class Manager(object):
@@ -44,7 +47,7 @@ class Manager(object):
         self.test_data_loader = test_loader(
             args.test_path, args.batch_size, pin_memory=args.cuda)
         self.criterion_class = nn.CrossEntropyLoss()
-        self.criterion_rank = RankLoss()
+        self.criterion_rank = RankLoss(0.05)
 
     def eval(self):
         """Performs evaluation."""
@@ -92,10 +95,10 @@ class Manager(object):
 
         # Do forward-backward.
         scores1, scores2, scores3 = self.model(batch)
-        self.criterion_class(scores1, label).backward()
-        self.criterion_class(scores2, label).backward()
-        self.criterion_class(scores3, label).backward()
-        self.criterion_rank(scores1, scores2, label).backward()
+        self.criterion_class(scores1, label).backward(retain_graph=True)
+        self.criterion_class(scores2, label).backward(retain_graph=True)
+        self.criterion_class(scores3, label).backward(retain_graph=True)
+        self.criterion_rank(scores1, scores2, label).backward(retain_graph=True)
         self.criterion_rank(scores2, scores3, label).backward()
 
         # Update params.

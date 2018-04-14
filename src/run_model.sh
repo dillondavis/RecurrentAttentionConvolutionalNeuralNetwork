@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage:
-# ./run_model.sh 3 1 resnet50 30 ../data
+# ./run_model.sh 3 1 vgg 30 ../data/CUBS
 
 # This is hard-coded to prevent silly mistakes.
 declare -A NUM_OUTPUTS
@@ -26,7 +26,7 @@ do
     TAG=$ARCH'all_lr'$LR'_lrdecay'$LR_DECAY_EVERY'_'$RUN_ID'_epochs'$NUM_EPOCHS
 
     CUDA_VISIBLE_DEVICES=$GPU_ID python main.py --mode finetune --arch $ARCH \
-      --dataset $DATASET --num_outputs ${NUM_OUTPUTS[$DATASET]} --batch_size 16 \
+      --dataset $DATASET --num_outputs ${NUM_OUTPUTS[$DATASET]} --batch_size 1 \
       --lr $LR  --lr_decay_every $LR_DECAY_EVERY \
       --lr_decay_factor 0.1 --finetune_epochs $NUM_EPOCHS \
       --train_path $DATA_ROOT --test_path $DATA_ROOT\
