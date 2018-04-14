@@ -56,7 +56,7 @@ def main():
     if args.arch == 'vgg':
         cnn = net.VGG
     elif args.arch == 'resnet':
-        pass
+        cnn = net.ResNet
     elif args.arch == 'densenet':
         pass
     else:

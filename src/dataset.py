@@ -71,7 +71,7 @@ class CUBS2011(data.Dataset):
         img = Image.open(image_path)
         if img.mode == 'L':
             img = img.convert('RBG')
-        lbl = self.id_to_label[image_id]
+        lbl = self.id_to_label[image_id] - 1
 
         if self._transform:
             return self.transform(img, lbl)

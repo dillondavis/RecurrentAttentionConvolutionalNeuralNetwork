@@ -15,7 +15,7 @@ class VGG(nn.Module):
         self.features = nn.Sequential(*base_features)
         self.n_features = 512 * 7 * 7
         self.classifier = nn.Sequential(
-            nn.Linear(512 * 7 * 7, 4096),
+            nn.Linear(self.n_features, 4096),
             nn.ReLU(True),
             nn.Dropout(),
             nn.Linear(4096, 4096),
@@ -28,6 +28,33 @@ class VGG(nn.Module):
     def forward(self, x):
         """
         Applies VGG16 forward pass for class wise scores
+        :param input: (num_batch, 3, h, w) np array batch of images to find class wise scores of
+        :return: (num_batch, num_classes) np array of class wise scores per image
+        """
+        feats = self.features(x)
+        feats = feats.view(x.size(0), -1)
+        out = self.classifier(feats)
+
+        return out, feats
+
+
+class ResNet(nn.Module):
+    """
+    ResNet50 with Fine Grained Classification Head
+    """
+    def __init__(self, num_classes):
+        super(ResNet, self).__init__()
+        base_model = models.resnet50(pretrained=True)
+        base_features = [x for x in base_model.children()][:-1]
+        self.n_features = 2048 * 7 * 7
+        self.features = nn.Sequential(*base_features)
+        self.classifier = nn.Sequential(
+            nn.Linear(self.n_features, num_classes),
+        )
+
+    def forward(self, x):
+        """
+        Applies ResNet forward pass for class wise scores
         :param input: (num_batch, 3, h, w) np array batch of images to find class wise scores of
         :return: (num_batch, num_classes) np array of class wise scores per image
         """
@@ -65,23 +92,31 @@ class CropUpscale(nn.Module):
         self.up = nn.Upsample(size=target_size, mode='bilinear')
 
     def forward(self, x, crop_params):
+        # Get crop corner coords and shifted x and y range of image
         h, w = x.size(2), x.size(3)
-        tx, ty, half_width = crop_params[0,0], crop_params[0, 1], crop_params[0, 2]/2
-        txtl = torch.clamp(tx - half_width, min=0)
-        txbr = torch.clamp(tx + half_width, max=h-1)
-        tytl = torch.clamp(ty - half_width, min=0)
-        tybr = torch.clamp(ty + half_width, max=w-1)
+        txtl, txbr, tytl, tybr = self.get_crop_corners(crop_params, h, w)
         xtl, xbr, ytl, ybr = self.get_noise_shifted_coords(h, w, txtl, txbr, tytl, tybr)
 
+        # Build crop mask and mask the image
         Mx = torch.sigmoid(np.inf * xtl) - torch.sigmoid(np.inf * xbr)
         My = torch.sigmoid(np.inf * ytl) - torch.sigmoid(np.inf * ybr)
         M = torch.abs(torch.ger(Mx, My))
         masked_x = M * x
+
+        # Crop out zeroed out values from mask
         tlx, brx = int(txtl.data[0]), int(txbr.data[0])
         tly, bry = int(tytl.data[0]), int(tybr.data[0])
         crop_x = masked_x[:, :, tlx:brx, tly:bry]
         up_x = self.up(crop_x)
         return up_x
+
+    def get_crop_corners(self, crop_params, h, w):
+        tx, ty, half_width = crop_params[0,0], crop_params[0, 1], crop_params[0, 2]/2
+        txtl = torch.clamp(tx - half_width, min=0)
+        txbr = torch.clamp(tx + half_width, max=h-1)
+        tytl = torch.clamp(ty - half_width, min=0)
+        tybr = torch.clamp(ty + half_width, max=w-1)
+        return txtl, txbr, tytl, tybr
 
     def get_noise_shifted_coords(self, h, w, txtl, txbr, tytl, tybr):
         noise = 0.000001
@@ -92,17 +127,14 @@ class CropUpscale(nn.Module):
         ytl = ys - tytl
         ybr = ys - tybr
         ''' 
-        Bug workaround from https://github.com/JannerM/intrinsics-network/issues/3
-        for the following code
+	The following code only isn't compatible with torch 0.30 and up at the moment
+        Bug workaround can be found at https://github.com/JannerM/intrinsics-network/issues/3
+        '''
         xtl[xtl == 0] += noise
         xbr[xbr == 0] -= noise
         ytl[ytl == 0] += noise
         ybr[ybr == 0] -= noise
-        '''
-        xtl = xtl + ((xtl==0)==1).float()*noise
-        xbr = xbr - ((xbr==0)==1).float()*noise
-        ytl = ytl + ((ytl==0)==1).float()*noise
-        ybr = ybr - ((ybr==0)==1).float()*noise
+
         return xtl, xbr, ytl, ybr
 
 
