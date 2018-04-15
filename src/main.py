@@ -79,18 +79,18 @@ def main():
         assert args.lr and args.lr_decay_every
 
         # Get optimizer with correct params.
-        cnn_params_to_optimize = model.cnn1.parameters() + model.cnn2.parameters()
-        cnn_params_to_optimize += model.cnn3.parameters()
+        cnn_params_to_optimize = list(model.cnn1.parameters()) + list(model.cnn2.parameters())
+        cnn_params_to_optimize += list(model.cnn3.parameters())
         cnn_optimizer = optim.Adam(cnn_params_to_optimize, lr=args.lr)
-        cnn_optimizer = Optimizers(args)
-        cnn_optimizer.add(cnn_optimizer, args.lr, args.lr_decay_every)
-        apn_params_to_optimize = model.apn1.parameters() + model.apn2.parameters()
+        cnn_optimizers = Optimizers(args)
+        cnn_optimizers.add(cnn_optimizer, args.lr, args.lr_decay_every)
+        apn_params_to_optimize = list(model.apn1.parameters()) + list(model.apn2.parameters())
         apn_optimizer = optim.Adam(apn_params_to_optimize, lr=args.lr)
-        apn_optimizer = Optimizers(args)
-        apn_optimizer.add(apn_optimizer, args.lr, args.lr_decay_every)
+        apn_optimizers = Optimizers(args)
+        apn_optimizers.add(apn_optimizer, args.lr, args.lr_decay_every)
 
-        manager.train(args.finetune_epochs, cnn_optimizer,
-                      apn_optimizer, savename=args.save_prefix)
+        manager.train(args.finetune_epochs, cnn_optimizers,
+                      apn_optimizers, savename=args.save_prefix)
     elif args.mode == 'eval':
         # Just run the model on the eval set.
         manager.eval()

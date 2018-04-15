@@ -11,7 +11,7 @@ NUM_RUNS=$2
 ARCH=$3
 NUM_EPOCHS=$4
 DATA_ROOT=$5
-LR=2.5e-5
+LR=1e-3
 
 for RUN_ID in `seq 1 $NUM_RUNS`;
 do

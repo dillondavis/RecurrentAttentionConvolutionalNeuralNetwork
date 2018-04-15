@@ -24,10 +24,10 @@ class VGG(nn.Module):
         base_model = models.vgg16(pretrained=True)
         base_features = base_model.features
         self.features = [*base_features, View(-1, 25088)]
-        self.n_features = 512 * 7 * 7
         self.features.extend(list(base_model.classifier.children())[:-1])
+        self.n_features = 4096
         self.features = nn.Sequential(*self.features)
-        self.classifier = nn.Linear(4096, num_classes)
+        self.classifier = nn.Linear(self.n_features, num_classes)
 
 
     def forward(self, x):
@@ -170,11 +170,11 @@ class RACNN3(nn.Module):
 
     def flip_apns(self):
         for apn in [self.apn1, self.apn2]:
-            for param in apn.parameters:
+            for param in apn.parameters():
                 param.requires_grad = not param.requires_grad
 
     def flip_cnns(self):
         for cnn in [self.cnn1, self.cnn2, self.cnn3]:
-            for param in cnn.parameters:
+            for param in cnn.parameters():
                 param.requires_grad = not param.requires_grad
 

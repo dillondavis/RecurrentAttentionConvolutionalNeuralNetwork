@@ -90,9 +90,9 @@ class CUBS2011(data.Dataset):
         return new_img, lbl
 
 
-def train_loader_cubs(path, batch_size, num_workers=4, pin_memory=False, normalize=None, transform=False):
-    return data.DataLoader(CUBS2011(path, transform=True), batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin_memory)
+def train_loader_cubs(path, batch_size, num_workers=4, pin_memory=False, normalize=None, transform=True, shuffle=True):
+    return data.DataLoader(CUBS2011(path, transform=transform), batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
 
 
-def test_loader_cubs(path, batch_size, num_workers=4, pin_memory=False, normalize=None):
-    return data.DataLoader(CUBS2011(path, split='test', transform=True), batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin_memory)
+def test_loader_cubs(path, batch_size, num_workers=4, pin_memory=False, normalize=None, transform=True, shuffle=True):
+    return data.DataLoader(CUBS2011(path, split='test', transform=transform), batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
