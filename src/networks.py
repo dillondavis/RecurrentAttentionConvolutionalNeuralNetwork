@@ -4,6 +4,17 @@ import torch.nn as nn
 from torchvision import models
 
 
+class View(nn.Module):
+    """Changes view using a nn.Module."""
+
+    def __init__(self, *shape):
+        super(View, self).__init__()
+        self.shape = shape
+
+    def forward(self, input):
+        return input.view(*self.shape)
+
+
 class VGG(nn.Module):
     """
     VGG16 with Fine Grained Classification Head
@@ -12,17 +23,11 @@ class VGG(nn.Module):
         super(VGG, self).__init__()
         base_model = models.vgg16(pretrained=True)
         base_features = base_model.features
-        self.features = nn.Sequential(*base_features)
+        self.features = [*base_features, View(-1, 25088)]
         self.n_features = 512 * 7 * 7
-        self.classifier = nn.Sequential(
-            nn.Linear(self.n_features, 4096),
-            nn.ReLU(True),
-            nn.Dropout(),
-            nn.Linear(4096, 4096),
-            nn.ReLU(True),
-            nn.Dropout(),
-            nn.Linear(4096, num_classes),
-        )
+        self.features.extend(list(base_model.classifier.children())[:-1])
+        self.features = nn.Sequential(*self.features)
+        self.classifier = nn.Linear(4096, num_classes)
 
 
     def forward(self, x):
@@ -32,7 +37,6 @@ class VGG(nn.Module):
         :return: (num_batch, num_classes) np array of class wise scores per image
         """
         feats = self.features(x)
-        feats = feats.view(x.size(0), -1)
         out = self.classifier(feats)
 
         return out, feats
@@ -163,4 +167,14 @@ class RACNN3(nn.Module):
         crop_x = self.cropup(x, crop_params2)
         scores3, _ = self.cnn3(x)
         return scores1, scores2, scores3
+
+    def flip_apns(self):
+        for apn in [self.apn1, self.apn2]:
+            for param in apn.parameters:
+                param.requires_grad = not param.requires_grad
+
+    def flip_cnns(self):
+        for cnn in [self.cnn1, self.cnn2, self.cnn3]:
+            for param in cnn.parameters:
+                param.requires_grad = not param.requires_grad
 

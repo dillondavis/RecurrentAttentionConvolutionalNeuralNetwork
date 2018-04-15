@@ -26,6 +26,9 @@ FLAGS.add_argument('--lr_decay_every', type=int,
                    help='Step decay every this many epochs')
 FLAGS.add_argument('--lr_decay_factor', type=float,
                    help='Multiply lr by this much every step of decay')
+FLAGS.add_argument('--converge_acc_diff', type=float,
+                   help='Difference in percent accuracy between epochs to switch\
+                   between optimizing class and optimizing rank', default=0.5)
 FLAGS.add_argument('--finetune_epochs', type=int,
                    help='Number of initial finetuning epochs')
 FLAGS.add_argument('--batch_size', type=int, default=32,
@@ -76,13 +79,18 @@ def main():
         assert args.lr and args.lr_decay_every
 
         # Get optimizer with correct params.
-        params_to_optimize = model.parameters()
+        cnn_params_to_optimize = model.cnn1.parameters() + model.cnn2.parameters()
+        cnn_params_to_optimize += model.cnn3.parameters()
+        cnn_optimizer = optim.Adam(cnn_params_to_optimize, lr=args.lr)
+        cnn_optimizer = Optimizers(args)
+        cnn_optimizer.add(cnn_optimizer, args.lr, args.lr_decay_every)
+        apn_params_to_optimize = model.apn1.parameters() + model.apn2.parameters()
+        apn_optimizer = optim.Adam(apn_params_to_optimize, lr=args.lr)
+        apn_optimizer = Optimizers(args)
+        apn_optimizer.add(apn_optimizer, args.lr, args.lr_decay_every)
 
-        optimizer = optim.Adam(params_to_optimize, lr=args.lr)
-        optimizers = Optimizers(args)
-        optimizers.add(optimizer, args.lr, args.lr_decay_every)
-        manager.train(args.finetune_epochs, optimizers,
-                      savename=args.save_prefix)
+        manager.train(args.finetune_epochs, cnn_optimizer,
+                      apn_optimizer, savename=args.save_prefix)
     elif args.mode == 'eval':
         # Just run the model on the eval set.
         manager.eval()

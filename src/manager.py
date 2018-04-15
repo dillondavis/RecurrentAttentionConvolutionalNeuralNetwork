@@ -77,7 +77,7 @@ class Manager(object):
 
         return errors
 
-    def do_batch(self, optimizer, batch, label):
+    def do_batch(self, optimizer, batch, label, optimize_class=True):
         """
         Runs model for one batch
         :param optimizer: Optimizer for training
@@ -95,23 +95,25 @@ class Manager(object):
 
         # Do forward-backward.
         scores1, scores2, scores3 = self.model(batch)
-        self.criterion_class(scores1, label).backward(retain_graph=True)
-        self.criterion_class(scores2, label).backward(retain_graph=True)
-        self.criterion_class(scores3, label).backward(retain_graph=True)
-        self.criterion_rank(scores1, scores2, label).backward(retain_graph=True)
-        self.criterion_rank(scores2, scores3, label).backward()
+        if optimize_class:
+            self.criterion_class(scores1, label).backward(retain_graph=True)
+            self.criterion_class(scores2, label).backward(retain_graph=True)
+            self.criterion_class(scores3, label).backward()
+        else:
+            self.criterion_rank(scores1, scores2, label).backward(retain_graph=True)
+            self.criterion_rank(scores2, scores3, label).backward()
 
         # Update params.
         optimizer.step()
 
-    def do_epoch(self, epoch_idx, optimizer):
+    def do_epoch(self, epoch_idx, optimizer, optimize_class=True):
         """
         Trains model for one epoch
         :param epoch_idx: int epoch number
         :param optimizer: Optimizer for training
         """
         for batch, label in tqdm(self.train_data_loader, desc='Epoch: %d ' % (epoch_idx)):
-            self.do_batch(optimizer, batch, label)
+            self.do_batch(optimizer, batch, label, optimize_class=optimize_class)
 
     def save_model(self, epoch, best_accuracy, errors, savename):
         """Saves model to file."""
@@ -139,22 +141,28 @@ class Manager(object):
         self.model.load_state_dict(ckpt['state_dict'])
         self.args = ckpt['args']
 
-    def train(self, epochs, optimizer, savename='', best_accuracy=0):
+    def train(self, epochs, cnn_optimizer, apn_optimizer, savename='', best_accuracy=0):
         """Performs training."""
         best_accuracy = best_accuracy
         error_history = []
+        optimize_class = True
+        class_epoch = 0
+        rank_epoch = 0
+        self.model.flip_apns()
 
         if self.args.cuda:
             self.model = self.model.cuda()
 
-        for idx in range(epochs):
-            epoch_idx = idx + 1
-            print('Epoch: %d' % (epoch_idx))
+        for i in range(epochs):
+            print('Epoch : {}'.format(i+1))
+            epoch_idx = (class_epoch if optimize_class else rank_epoch) + 1
+            epoch_type = 'Class' if optimize_class else 'Rank'
+            print('Optimize {} Epoch: {}'.format(epoch_type, epoch_idx))
 
+            optimizer = cnn_optimizer if optimize_class else apn_optimizer
             optimizer.update_lr(epoch_idx)
             self.model.train()
-
-            self.do_epoch(epoch_idx, optimizer)
+            self.do_epoch(epoch_idx, optimizer, optimize_class=optimize_class)
             errors = self.eval()
             error_history.append(errors)
             accuracy = 100 - errors[0]  # Top-1 accuracy.
@@ -172,6 +180,16 @@ class Manager(object):
                       (best_accuracy, accuracy))
                 best_accuracy = accuracy
                 self.save_model(epoch_idx, best_accuracy, errors, savename)
+            elif np.abs(best_accuracy - accuracy) < self.args.converge_acc_diff:
+                optimize_class = not optimize_class
+                self.model.flip_apns()
+                self.model.flip_cnns()
+
+            if optimize_class:
+                class_epoch += 1
+            else:
+                rank_epoch += 1
+
 
         print('Finished finetuning...')
         print('Best error/accuracy: %0.2f%%, %0.2f%%' %
