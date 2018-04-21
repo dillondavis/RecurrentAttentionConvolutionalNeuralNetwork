@@ -102,8 +102,9 @@ class CropUpscale(nn.Module):
         xtl, xbr, ytl, ybr = self.get_noise_shifted_coords(h, w, txtl, txbr, tytl, tybr)
 
         # Build crop mask and mask the image
-        Mx = torch.sigmoid(np.inf * xtl) - torch.sigmoid(np.inf * xbr)
-        My = torch.sigmoid(np.inf * ytl) - torch.sigmoid(np.inf * ybr)
+        inf = torch.autograd.Variable(torch.Tensor([float('inf')]).cuda())
+        Mx = torch.sigmoid(inf * xtl) - torch.sigmoid(inf * xbr)
+        My = torch.sigmoid(inf * ytl) - torch.sigmoid(inf * ybr)
         M = torch.abs(torch.ger(Mx, My))
         masked_x = M * x
 
@@ -126,18 +127,24 @@ class CropUpscale(nn.Module):
         noise = 0.000001
         xs = torch.autograd.Variable(torch.arange(0, h).cuda())
         ys = torch.autograd.Variable(torch.arange(0, w).cuda())
-        xtl = xs - txtl
-        xbr = xs - txbr
-        ytl = ys - tytl
-        ybr = ys - tybr
+        xtl = xs - txtl.cuda()
+        xbr = xs - txbr.cuda()
+        ytl = ys - tytl.cuda()
+        ybr = ys - tybr.cuda()
         ''' 
 	The following code only isn't compatible with torch 0.30 and up at the moment
         Bug workaround can be found at https://github.com/JannerM/intrinsics-network/issues/3
         '''
-        xtl[xtl == 0] += noise
+        xtl += xtl + ((xtl == 0) == 1).float() * noise
+        xbr += xbr + ((xbr == 0) == 1).float() * noise
+        ytl += ytl + ((ytl == 0) == 1).float() * noise
+        ybr += ybr + ((ybr == 0) == 1).float() * noise
+        '''
+        xtl[xtl == 0] -= noise
         xbr[xbr == 0] -= noise
         ytl[ytl == 0] += noise
         ybr[ybr == 0] -= noise
+        '''
 
         return xtl, xbr, ytl, ybr
 

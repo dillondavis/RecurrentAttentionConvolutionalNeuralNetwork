@@ -8,7 +8,8 @@ from tensorboardX import SummaryWriter
 import networks
 
 
-dummy_input = Variable(torch.rand(1, 3, 224, 224))
+dummy_input = Variable(torch.rand(1, 3, 224, 224).cuda())
 model = networks.RACNN3(200, networks.VGG)
+model.cuda()
 with SummaryWriter(comment='RACNN3') as w:
     w.add_graph(model, (dummy_input, ))

@@ -60,7 +60,7 @@ def get_random_quad(img, model, h_range, w_range):
     splits = [up(img[:, :, h:h+224//2, w:w+224//2]) for h, w in zip(hs, ws)]
     responses = [model(split)[1].data.norm() for split in splits]
     best = np.argmax(responses)
-    return splits[best], (hs[best], ws[best])
+    return splits[best], (hs[best]+224//4, ws[best]+224//4)
 
 
 def split_image(img):
