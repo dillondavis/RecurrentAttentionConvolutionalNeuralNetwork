@@ -154,10 +154,11 @@ class RACNN3(nn.Module):
         super(RACNN3, self).__init__()
         self.cnn1 = cnn(num_classes)
         self.apn1 = APN(self.cnn1.n_features)
+        self.cropup1 = CropUpscale((224, 224))
         self.cnn2 = cnn(num_classes)
         self.apn2 = APN(self.cnn2.n_features)
+        self.cropup2 = CropUpscale((224, 224))
         self.cnn3 = cnn(num_classes)
-        self.cropup = CropUpscale((224, 224))
 
     def forward(self, x):
         """
@@ -168,10 +169,10 @@ class RACNN3(nn.Module):
         h, w = x.size(2), x.size(3)
         scores1, feats1 = self.cnn1(x)
         crop_params1 = self.apn1(feats1)
-        crop_x = self.cropup(x, crop_params1)
+        crop_x = self.cropup1(x, crop_params1)
         scores2, feats2 = self.cnn2(crop_x)
         crop_params2 = self.apn2(feats2)
-        crop_x = self.cropup(x, crop_params2)
+        crop_x = self.cropup2(x, crop_params2)
         scores3, _ = self.cnn3(x)
         return scores1, scores2, scores3
 
