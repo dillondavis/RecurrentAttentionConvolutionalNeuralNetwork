@@ -23,7 +23,7 @@ class VGG(nn.Module):
         super(VGG, self).__init__()
         base_model = models.vgg16(pretrained=True)
         base_features = base_model.features
-        self.features = [*base_features, View(-1, 25088)]
+        self.features = [*base_features, View(-1, 512 * 7 * 7)]
         self.features.extend(list(base_model.classifier.children())[:-1])
         self.n_features = 4096
         self.features = nn.Sequential(*self.features)
@@ -79,10 +79,10 @@ class APN(nn.Module):
         self.fc2 = nn.Linear(1024, 3)
         self.regressor = nn.Tanh()
 
-    def forward(self, x, im_size):
+    def forward(self, x):
         params = self.fc2(self.fc1(x))
         params = (self.regressor(params) + 1) / 2
-        params *= im_size 
+        params *= 224
         return params
 
 
@@ -160,10 +160,10 @@ class RACNN3(nn.Module):
         """
         h, w = x.size(2), x.size(3)
         scores1, feats1 = self.cnn1(x)
-        crop_params1 = self.apn1(feats1, h)
+        crop_params1 = self.apn1(feats1)
         crop_x = self.cropup(x, crop_params1)
         scores2, feats2 = self.cnn2(crop_x)
-        crop_params2 = self.apn2(feats2, h)
+        crop_params2 = self.apn2(feats2)
         crop_x = self.cropup(x, crop_params2)
         scores3, _ = self.cnn3(x)
         return scores1, scores2, scores3
