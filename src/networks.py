@@ -131,20 +131,18 @@ class CropUpscale(nn.Module):
         xbr = xs - txbr.cuda()
         ytl = ys - tytl.cuda()
         ybr = ys - tybr.cuda()
-        ''' 
-	The following code only isn't compatible with torch 0.30 and up at the moment
-        Bug workaround can be found at https://github.com/JannerM/intrinsics-network/issues/3
         '''
-        xtl += xtl + ((xtl == 0) == 1).float() * noise
-        xbr += xbr + ((xbr == 0) == 1).float() * noise
-        ytl += ytl + ((ytl == 0) == 1).float() * noise
-        ybr += ybr + ((ybr == 0) == 1).float() * noise
-        '''
+	    The following code only isn't compatible with torch 0.30 and up at the moment
+        Bug workaround below can be found at https://github.com/JannerM/intrinsics-network/issues/3
         xtl[xtl == 0] -= noise
         xbr[xbr == 0] -= noise
         ytl[ytl == 0] += noise
         ybr[ybr == 0] -= noise
         '''
+        xtl = xtl + ((xtl == 0) == 1).float() * noise
+        xbr = xbr - ((xbr == 0) == 1).float() * noise
+        ytl = ytl + ((ytl == 0) == 1).float() * noise
+        ybr = ybr - ((ybr == 0) == 1).float() * noise
 
         return xtl, xbr, ytl, ybr
 
@@ -169,11 +167,11 @@ class RACNN3(nn.Module):
         h, w = x.size(2), x.size(3)
         scores1, feats1 = self.cnn1(x)
         crop_params1 = self.apn1(feats1)
-        crop_x = self.cropup1(x, crop_params1)
-        scores2, feats2 = self.cnn2(crop_x)
+        crop_x1 = self.cropup1(x, crop_params1)
+        scores2, feats2 = self.cnn2(crop_x1)
         crop_params2 = self.apn2(feats2)
-        crop_x = self.cropup2(x, crop_params2)
-        scores3, _ = self.cnn3(x)
+        crop_x2 = self.cropup2(crop_x1, crop_params2)
+        scores3, _ = self.cnn3(crop_x2)
         return scores1, scores2, scores3
 
     def flip_apns(self):
