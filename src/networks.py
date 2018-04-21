@@ -178,3 +178,28 @@ class RACNN3(nn.Module):
             for param in cnn.parameters():
                 param.requires_grad = not param.requires_grad
 
+
+class APN2(nn.Module):
+    def __init__(self, num_classes, cnn):
+        super(APN2, self).__init__()
+        self.cnn = cnn(num_classes)
+        for param in self.cnn.parameters():
+            param.requires_grad = False
+        self.apn1 = APN(self.cnn.n_features)
+        self.apn2 = APN(self.cnn.n_features)
+        self.cropup = CropUpscale((224, 224))
+
+    def forward(self, x, crop_params=None):
+        h = x.size(2)
+        _, feats = self.cnn(x)
+        crop_params1 = self.apn1(feats, 1)
+        if crop_params is None:
+            x, y, hw = crop_params[0], crop_params[1], crop_params[2]/2
+            crop_x = x[:, :, x-hw:h+hw, y-hw:y+hw]
+        else:
+            crop_x = self.cropup(x, crop_params1*h)
+        _, feats = self.cnn(crop_x)
+        crop_params2 = self.apn2(feats, 1)
+        return torch.cat([crop_params1, crop_params2], 1)
+
+

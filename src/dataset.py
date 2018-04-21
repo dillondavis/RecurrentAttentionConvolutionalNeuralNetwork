@@ -10,16 +10,20 @@ from PIL import Image
 
 
 class CUBS2011(data.Dataset):
-    def __init__(self, root, split='train', transform=False):
+    def __init__(self, root, split='train', transform=False, coords=False):
         self.root = root
         self.split = split
+        self.coords = coords
         self._transform = transform
         self.mean = [0.485, 0.456, 0.406]
         self.std = [0.229, 0.224, 0.225]
         self.bw_image_ids = ['1401', '3617', '3780', '5393', '448', '3619', '5029', '6321']
         self.image_ids = self.get_image_ids()
         self.id_to_file = self.get_id_to_file()
-        self.id_to_label = self.get_id_to_label()
+        if coords:
+            self.id_to_coords = self.get_id_to_coords()
+        else:
+            self.id_to_label = self.get_id_to_label()
 
     def get_image_ids(self):
         image_ids = []
@@ -50,6 +54,15 @@ class CUBS2011(data.Dataset):
                 id_to_label[split[0]] = int(split[1])
         return id_to_label
 
+    def get_id_to_coords(self):
+        id_to_coords = {}
+        lbl_file = os.path.join(self.root, 'image_crop_labels.txt')
+        with open(lbl_file) as f:
+            for line in f:
+                split = line.split()
+                id_to_coords[split[0]] = np.array([int(i) for i in split[1:]])
+        return id_to_coords
+
     def find_invalid_bw_images(self):
         for i in self.image_ids:
             image_file = self.id_to_file[i]
@@ -71,7 +84,10 @@ class CUBS2011(data.Dataset):
         img = Image.open(image_path)
         if img.mode == 'L':
             img = img.convert('RBG')
-        lbl = self.id_to_label[image_id] - 1
+        if self.coords:
+            lbl = self.id_to_coords[image_id]
+        else:
+            lbl = self.id_to_label[image_id] - 1
 
         if self._transform:
             return self.transform(img, lbl)
@@ -87,12 +103,15 @@ class CUBS2011(data.Dataset):
             )
         ])(img)
 
+        if self.coords:
+            lbl = lbl.astype(float) / 224
+
         return new_img, lbl
 
 
-def train_loader_cubs(path, batch_size, num_workers=4, pin_memory=False, normalize=None, transform=True, shuffle=True):
-    return data.DataLoader(CUBS2011(path, transform=transform), batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
+def train_loader_cubs(path, batch_size, num_workers=4, pin_memory=False, normalize=None, transform=True, shuffle=True, coords=False):
+    return data.DataLoader(CUBS2011(path, transform=transform, coords=coords), batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
 
 
-def test_loader_cubs(path, batch_size, num_workers=4, pin_memory=False, normalize=None, transform=True, shuffle=True):
-    return data.DataLoader(CUBS2011(path, split='test', transform=transform), batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
+def test_loader_cubs(path, batch_size, num_workers=4, pin_memory=False, normalize=None, transform=True, shuffle=True, coords=False):
+    return data.DataLoader(CUBS2011(path, split='test', transform=transform, coords=coords), batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)

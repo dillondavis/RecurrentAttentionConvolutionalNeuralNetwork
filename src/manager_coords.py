@@ -13,18 +13,6 @@ from tqdm import tqdm
 from torch.autograd import Variable
 
 
-
-class RankLoss(nn.Module):
-    def __init__(self, margin):
-        super(RankLoss, self).__init__()
-        self.margin = margin
-
-    def forward(self, scores1, scores2, target):
-        ps1 = F.softmax(scores1)[:, target.long().data]
-        ps2 = F.softmax(scores2)[:, target.long().data]
-        return torch.clamp(ps1 - ps2 + self.margin, min=0)
-
-
 class Manager(object):
     """Handles training and pruning."""
 
@@ -42,12 +30,11 @@ class Manager(object):
         # Set up data loader, criterion, and pruner.
         train_loader = dataset.train_loader_cubs
         test_loader = dataset.test_loader_cubs
-        self.train_data_loader = train_loader(
-            args.train_path, args.batch_size, pin_memory=args.cuda)
-        self.test_data_loader = test_loader(
-            args.test_path, args.batch_size, pin_memory=args.cuda)
-        self.criterion_class = nn.CrossEntropyLoss()
-        self.criterion_rank = RankLoss(0.05)
+        self.train_data_loader = train_loader(args.train_path, 
+	    args.batch_size, pin_memory=args.cuda, coords=True)
+        self.test_data_loader = test_loader(args.test_path, 
+            args.batch_size, pin_memory=args.cuda, coords=True)
+        self.criterion = nn.MSELoss()
 
     def eval(self):
         """Performs evaluation."""
@@ -58,26 +45,25 @@ class Manager(object):
         for batch, label in tqdm(self.test_data_loader, desc='Eval'):
             if self.cuda:
                 batch = batch.cuda()
+                label = label.cuda()
             batch = Variable(batch, volatile=True)
-            scores1, scores2, scores3 = self.model(batch)
+            label = Variable(label, volatile=True).float()
+            output = self.model(batch, label)
 
             # Init error meter.
-            output = scores3.data.view(-1, scores3.size(1))
-            label = label.view(-1)
             if error_meter is None:
-                topk = [1]
-                if output.size(1) > 5:
-                    topk.append(5)
-                error_meter = tnt.meter.ClassErrorMeter(topk=topk)
+                error_meter = tnt.meter.MSEMeter()
+            label = label.data.cpu().numpy()
+            output = output.data.cpu().numpy()
             error_meter.add(output, label)
 
-        errors = error_meter.value()
-        print('Error: ' + ', '.join('@%s=%.2f' % t for t in zip(topk, errors)))
+        error = error_meter.value()
+        print('MSE: {}'.format(error))
         self.model.train()
 
-        return errors
+        return error
 
-    def do_batch(self, optimizer, batch, label, optimize_class=True):
+    def do_batch(self, optimizer, batch, label):
         """
         Runs model for one batch
         :param optimizer: Optimizer for training
@@ -88,32 +74,33 @@ class Manager(object):
             batch = batch.cuda()
             label = label.cuda()
         batch = Variable(batch)
-        label = Variable(label)
+        label = Variable(label).float()
 
         # Set grads to 0.
         self.model.zero_grad()
 
         # Do forward-backward.
-        scores1, scores2, scores3 = self.model(batch)
-        if optimize_class:
-            self.criterion_class(scores1, label).backward(retain_graph=True)
-            self.criterion_class(scores2, label).backward(retain_graph=True)
-            self.criterion_class(scores3, label).backward()
-        else:
-            self.criterion_rank(scores1, scores2, label).backward(retain_graph=True)
-            self.criterion_rank(scores2, scores3, label).backward()
+        output = self.model(batch, label)
+        self.criterion(output, label).backward()
 
         # Update params.
+        nn.utils.clip_grad.clip_grad_norm(self.model.parameters(), 1)
+        '''
+        for p in self.model.parameters():
+            if p.grad is None:
+                continue
+            p.grad.data = p.grad.data.clamp(-1, 1)
+        '''
         optimizer.step()
 
-    def do_epoch(self, epoch_idx, optimizer, optimize_class=True):
+    def do_epoch(self, epoch_idx, optimizer):
         """
         Trains model for one epoch
         :param epoch_idx: int epoch number
         :param optimizer: Optimizer for training
         """
         for batch, label in tqdm(self.train_data_loader, desc='Epoch: %d ' % (epoch_idx)):
-            self.do_batch(optimizer, batch, label, optimize_class=optimize_class)
+            self.do_batch(optimizer, batch, label)
 
     def save_model(self, epoch, best_accuracy, errors, savename):
         """Saves model to file."""
@@ -124,7 +111,8 @@ class Manager(object):
             'epoch': epoch,
             'accuracy': best_accuracy,
             'errors': errors,
-            'state_dict': self.model.state_dict(),
+            'apn1_state_dict': self.model.apn1.state_dict(),
+            'apn2_state_dict': self.model.apn2.state_dict(),
         }
         if self.cuda:
             self.model.cuda()
@@ -138,34 +126,25 @@ class Manager(object):
         :param savename: string file prefix
         """
         ckpt = torch.load(savename +'.pt')
-        self.model.load_state_dict(ckpt['state_dict'])
+        self.model.apn1.load_state_dict(ckpt['apn1_state_dict'])
+        self.model.apn2.load_state_dict(ckpt['apn2_state_dict'])
         self.args = ckpt['args']
 
-    def train(self, epochs, cnn_optimizer, apn_optimizer, savename='', best_accuracy=0):
+    def train(self, epochs, optimizer, savename=''):
         """Performs training."""
-        best_accuracy = best_accuracy
+        best_error = np.inf
         error_history = []
-        optimize_class = True
-        class_epoch = 0
-        rank_epoch = 0
-        #self.model.flip_apns()
 
         if self.args.cuda:
             self.model = self.model.cuda()
 
         for i in range(epochs):
-            print('Epoch : {}'.format(i+1))
-            epoch_idx = (class_epoch if optimize_class else rank_epoch) + 1
-            epoch_type = 'Class' if optimize_class else 'Rank'
-            print('Optimize {} Epoch: {}'.format(epoch_type, epoch_idx))
-
-            optimizer = cnn_optimizer if optimize_class else apn_optimizer
+            epoch_idx = i + 1
             optimizer.update_lr(epoch_idx)
             self.model.train()
-            self.do_epoch(epoch_idx, optimizer, optimize_class=optimize_class)
-            errors = self.eval()
-            error_history.append(errors)
-            accuracy = 100 - errors[0]  # Top-1 accuracy.
+            self.do_epoch(epoch_idx, optimizer)
+            error = self.eval()
+            error_history.append(error)
 
             # Save performance history and stats.
             with open(savename + '.json', 'w') as fout:
@@ -175,25 +154,16 @@ class Manager(object):
                 }, fout)
 
             # Save best model, if required.
-            if accuracy > best_accuracy:
-                print('Best model so far, Accuracy: %0.2f%% -> %0.2f%%' %
-                      (best_accuracy, accuracy))
-                best_accuracy = accuracy
-                self.save_model(epoch_idx, best_accuracy, errors, savename)
-            elif np.abs(best_accuracy - accuracy) < self.args.converge_acc_diff:
-                optimize_class = not optimize_class
-                #self.model.flip_apns()
-                #self.model.flip_cnns()
-
-            if optimize_class:
-                class_epoch += 1
-            else:
-                rank_epoch += 1
+            if error < best_error:
+                print('Best model so far, Error: %0.2f%% -> %0.2f%%' %
+                      (best_error, error))
+                best_error = error
+                self.save_model(epoch_idx, best_error, error, savename)
 
 
         print('Finished finetuning...')
-        print('Best error/accuracy: %0.2f%%, %0.2f%%' %
-              (100 - best_accuracy, best_accuracy))
+        print('Best error: %0.2f%%' %
+              (best_error))
         print('-' * 16)
 
 
