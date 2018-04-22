@@ -82,7 +82,6 @@ class APN(nn.Module):
     def forward(self, x):
         params = self.fc2(self.fc1(x))
         params = (self.regressor(params) + 1) / 2
-        #params *= 224
         return params
 
 
@@ -168,11 +167,11 @@ class RACNN3(nn.Module):
         scores1, feats1 = self.cnn1(x)
         crop_params1 = self.apn1(feats1)
 
-        crop_x1 = self.cropup1(x, crop_params1)
+        crop_x1 = self.cropup1(x, h*crop_params1)
         scores2, feats2 = self.cnn2(crop_x1)
         crop_params2 = self.apn2(feats2)
 
-        crop_x2 = self.cropup2(crop_x1, crop_params2)
+        crop_x2 = self.cropup2(crop_x1, h*crop_params2)
         scores3, _ = self.cnn3(crop_x2)
         return scores1, scores2, scores3
 
@@ -185,6 +184,11 @@ class RACNN3(nn.Module):
         for cnn in [self.cnn1, self.cnn2, self.cnn3]:
             for param in cnn.parameters():
                 param.requires_grad = not param.requires_grad
+
+    def init_with_apn2(self):
+        ckpt = torch.load('../checkpoints/CUBS/apn2.pt.pt')
+        self.apn1.load_state_dict(ckpt['apn1_state_dict'])
+        self.apn2.load_state_dict(ckpt['apn2_state_dict'])
 
 
 class APN2(nn.Module):

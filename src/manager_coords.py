@@ -84,13 +84,7 @@ class Manager(object):
         self.criterion(output, label).backward()
 
         # Update params.
-        nn.utils.clip_grad.clip_grad_norm(self.model.parameters(), 1)
-        '''
-        for p in self.model.parameters():
-            if p.grad is None:
-                continue
-            p.grad.data = p.grad.data.clamp(-1, 1)
-        '''
+        # nn.utils.clip_grad.clip_grad_norm(self.model.parameters(), 1)
         optimizer.step()
 
     def do_epoch(self, epoch_idx, optimizer):
