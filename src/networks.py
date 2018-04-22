@@ -82,7 +82,7 @@ class APN(nn.Module):
     def forward(self, x):
         params = self.fc2(self.fc1(x))
         params = (self.regressor(params) + 1) / 2
-        params *= 224
+        #params *= 224
         return params
 
 
@@ -167,9 +167,11 @@ class RACNN3(nn.Module):
         h, w = x.size(2), x.size(3)
         scores1, feats1 = self.cnn1(x)
         crop_params1 = self.apn1(feats1)
+
         crop_x1 = self.cropup1(x, crop_params1)
         scores2, feats2 = self.cnn2(crop_x1)
         crop_params2 = self.apn2(feats2)
+
         crop_x2 = self.cropup2(crop_x1, crop_params2)
         scores3, _ = self.cnn3(crop_x2)
         return scores1, scores2, scores3
@@ -198,14 +200,15 @@ class APN2(nn.Module):
     def forward(self, x, crop_params=None):
         h = x.size(2)
         _, feats = self.cnn(x)
-        crop_params1 = self.apn1(feats, 1)
-        if crop_params is None:
-            x, y, hw = crop_params[0], crop_params[1], crop_params[2]/2
-            crop_x = x[:, :, x-hw:h+hw, y-hw:y+hw]
+        crop_params1 = self.apn1(feats)
+        if crop_params is not None:
+            cx, cy, hw = int(h*crop_params[0, 0]), int(h*crop_params[0, 1]), int(h*crop_params[0, 2])
+            crop_x = x[:, :, cx-hw:cx+hw, cy-hw:cy+hw]
+            crop_x = nn.Upsample(size=(h, h), mode='bilinear')(crop_x)
         else:
             crop_x = self.cropup(x, crop_params1*h)
         _, feats = self.cnn(crop_x)
-        crop_params2 = self.apn2(feats, 1)
+        crop_params2 = self.apn2(feats)
         return torch.cat([crop_params1, crop_params2], 1)
 
 
