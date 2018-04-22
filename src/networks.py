@@ -21,13 +21,18 @@ class VGG(nn.Module):
     """
     def __init__(self, num_classes):
         super(VGG, self).__init__()
-        base_model = models.vgg16(pretrained=True)
-        base_features = base_model.features
-        self.features = [*base_features, View(-1, 512 * 7 * 7)]
-        self.features.extend(list(base_model.classifier.children())[:-1])
-        self.n_features = 4096
+        base_model = models.vgg19(pretrained=True)
+        base_features = list(base_model.features)
+        self.features = [*base_features[:-2]]
+        self.n_features = 512 * 14 * 14
+        self.flatten_features = View(-1, self.n_features)
         self.features = nn.Sequential(*self.features)
-        self.classifier = nn.Linear(self.n_features, num_classes)
+        self.classifier = nn.Sequential(
+                *base_features[-2:],
+                View(-1, 512 * 7 * 7),
+                *list(base_model.classifier.children())[:-1],
+                nn.Linear(4096, num_classes)
+        )
 
 
     def forward(self, x):
@@ -39,7 +44,7 @@ class VGG(nn.Module):
         feats = self.features(x)
         out = self.classifier(feats)
 
-        return out, feats
+        return out, self.flatten_features(feats)
 
 
 class ResNet(nn.Module):
