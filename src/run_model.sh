@@ -23,7 +23,7 @@ do
     mkdir $LOG_DIR
     CKPT_DIR=../checkpoints/$DATASET/$FT_LAYERS
     mkdir $CKPT_DIR
-    TAG=$ARCH'all_lr'$LR'_lrdecay'$LR_DECAY_EVERY'_'$RUN_ID'_epochs'$NUM_EPOCHS
+    TAG='racnn_'$ARCH'all_lr'$LR'_lrdecay'$LR_DECAY_EVERY'_'$RUN_ID'_epochs'$NUM_EPOCHS
 
     CUDA_VISIBLE_DEVICES=$GPU_ID python main.py --mode finetune --arch $ARCH \
       --dataset $DATASET --num_outputs ${NUM_OUTPUTS[$DATASET]} --batch_size 1 \

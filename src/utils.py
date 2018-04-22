@@ -20,7 +20,7 @@ def step_lr(epoch, base_lr, lr_decay_every, lr_decay_factor, optimizer):
 
 
 def find_quad_params():
-    f = open('../data/CUBS/image_crop_labels2.txt', 'w+') 
+    f = open('../data/CUBS/image_crop_labels_random.txt', 'w+') 
     cnn = VGG(200).cuda()
     num_scales = 2
     train_data = dataset.train_loader_cubs('../data/CUBS', 1, shuffle=False) 
@@ -54,8 +54,8 @@ def get_best_quad(img, model, h_range, w_range):
 
 
 def get_random_quad(img, model, h_range, w_range):
-    hs = np.random.choice(h_range, 5) 
-    ws = np.random.choice(w_range, 5) 
+    hs = np.random.choice(h_range, 10) 
+    ws = np.random.choice(w_range, 10) 
     up = nn.Upsample(size=(224, 224), mode='bilinear')
     splits = [up(img[:, :, h:h+224//2, w:w+224//2]) for h, w in zip(hs, ws)]
     responses = [model(split)[1].data.norm() for split in splits]

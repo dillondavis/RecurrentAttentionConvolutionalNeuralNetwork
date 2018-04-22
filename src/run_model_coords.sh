@@ -11,7 +11,7 @@ NUM_RUNS=$2
 ARCH=$3
 NUM_EPOCHS=$4
 DATA_ROOT=$5
-LR=1e-6
+LR=1e-5
 
 for RUN_ID in `seq 1 $NUM_RUNS`;
 do
@@ -23,7 +23,7 @@ do
     mkdir $LOG_DIR
     CKPT_DIR=../checkpoints/$DATASET/$FT_LAYERS
     mkdir $CKPT_DIR
-    TAG=$ARCH'all_lr'$LR'_lrdecay'$LR_DECAY_EVERY'_'$RUN_ID'_epochs'$NUM_EPOCHS
+    TAG=$ARCH'all_lr'$LR'_lrdecay_'$LR_DECAY_EVERY'_'$RUN_ID'_epochs'$NUM_EPOCHS
 
     CUDA_VISIBLE_DEVICES=$GPU_ID python main_coords.py --mode finetune --arch $ARCH \
       --dataset $DATASET --num_outputs ${NUM_OUTPUTS[$DATASET]} --batch_size 1\
