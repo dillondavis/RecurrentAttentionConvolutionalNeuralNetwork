@@ -22,8 +22,8 @@ def step_lr(epoch, base_lr, lr_decay_every, lr_decay_factor, optimizer):
 imsize = 448
 
 def find_quad_params():
-    f = open('../data/CUBS/image_crop_labels_random.txt', 'w+')
-    cnn = VGG(200).cuda()
+    f = open('../data/CUBS/image_crop_labels.txt', 'w+')
+    cnn = VGG(200, imsize).cuda()
     num_scales = 2
     train_data = dataset.train_loader_cubs('../data/CUBS', 1, shuffle=False)
     test_data = dataset.test_loader_cubs('../data/CUBS', 1, shuffle=False)

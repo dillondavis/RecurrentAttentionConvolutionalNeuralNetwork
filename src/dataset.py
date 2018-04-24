@@ -20,6 +20,14 @@ class CUBS2011(data.Dataset):
         self.bw_image_ids = ['1401', '3617', '3780', '5393', '448', '3619', '5029', '6321']
         self.image_ids = self.get_image_ids()
         self.id_to_file = self.get_id_to_file()
+        crop = transforms.Compose([transforms.Resize(512), transforms.RandomCrop(448)]) if self.split == 'train' else transforms.CenterCrop(448)
+        self.im_transform = transforms.Compose([
+            crop,
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=self.mean, std=self.std
+            )
+        ])
         if coords:
             self.id_to_coords = self.get_id_to_coords()
         else:
@@ -94,15 +102,7 @@ class CUBS2011(data.Dataset):
         return img, lbl
 
     def transform(self, img, lbl):
-        crop = transforms.RandomCrop(448) if self.split == 'train' else transforms.CenterCrop(448)
-        new_img = transforms.Compose([
-            crop,
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=self.mean, std=self.std
-            )
-        ])(img)
-
+        new_img = self.im_transform(img)
         if self.coords:
             lbl = lbl.astype(float) / 448
 

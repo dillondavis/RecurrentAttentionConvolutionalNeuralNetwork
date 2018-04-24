@@ -33,7 +33,8 @@ class VGG(nn.Module):
         self.classifier = nn.Sequential(
                 *base_features[-2:],
                 View(-1, 512 * pool_size//2 * pool_size//2),
-                *list(base_model.classifier.children())[:-1],
+                nn.Linear(512 * pool_size//2 * pool_size//2, 4096),
+                *list(base_model.classifier.children())[-6:-1],
                 nn.Linear(4096, num_classes)
         )
         for mod in self.classifier:
