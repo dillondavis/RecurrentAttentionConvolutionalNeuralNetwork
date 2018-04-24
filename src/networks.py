@@ -33,6 +33,9 @@ class VGG(nn.Module):
                 *list(base_model.classifier.children())[:-1],
                 nn.Linear(4096, num_classes)
         )
+        for mod in self.classifier:
+            if isinstance(mod, nn.ReLU):
+                mod.inplace = False
 
 
     def forward(self, x):
@@ -81,12 +84,13 @@ class APN(nn.Module):
     def __init__(self, n_features):
         super(APN, self).__init__()
         self.fc1 = nn.Linear(n_features, 1024)
+        self.regressor1 = nn.Tanh()
         self.fc2 = nn.Linear(1024, 3)
-        self.regressor = nn.Tanh()
+        self.regressor2 = nn.Sigmoid()
 
     def forward(self, x):
-        params = self.fc2(self.fc1(x))
-        params = (self.regressor(params) + 1) / 2
+        params = self.regressor1(self.fc1(x))
+        params = self.regressor2(self.fc2(params))
         return params
 
 
@@ -136,7 +140,7 @@ class CropUpscale(nn.Module):
         ytl = ys - tytl.cuda()
         ybr = ys - tybr.cuda()
         '''
-	    The following code only isn't compatible with torch 0.30 and up at the moment
+	The following code only isn't compatible with torch 0.30 and up at the moment
         Bug workaround below can be found at https://github.com/JannerM/intrinsics-network/issues/3
         xtl[xtl == 0] -= noise
         xbr[xbr == 0] -= noise
@@ -152,7 +156,7 @@ class CropUpscale(nn.Module):
 
 
 class RACNN3(nn.Module):
-    def __init__(self, num_classes, cnn):
+    def __init__(self, num_classes, cnn, init_apn=False):
         super(RACNN3, self).__init__()
         self.cnn1 = cnn(num_classes)
         self.apn1 = APN(self.cnn1.n_features)
@@ -161,6 +165,8 @@ class RACNN3(nn.Module):
         self.apn2 = APN(self.cnn2.n_features)
         self.cropup2 = CropUpscale((224, 224))
         self.cnn3 = cnn(num_classes)
+        if init_apn:
+            self.init_with_apn2()
 
     def forward(self, x):
         """

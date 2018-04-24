@@ -66,7 +66,7 @@ def main():
         raise ValueError('Architecture %s not supported.' % (args.arch))
 
     # Load the required model.
-    model = net.RACNN3(args.num_outputs, cnn)
+    model = net.RACNN3(args.num_outputs, cnn, True)
 
     if args.cuda:
         model = model.cuda()
