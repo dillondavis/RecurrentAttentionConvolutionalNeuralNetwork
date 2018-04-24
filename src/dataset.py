@@ -94,9 +94,9 @@ class CUBS2011(data.Dataset):
         return img, lbl
 
     def transform(self, img, lbl):
+        crop = transforms.RandomCrop(448) if self.split == 'train' else transforms.CenterCrop(448)
         new_img = transforms.Compose([
-            transforms.Scale(256),
-            transforms.CenterCrop(224),
+            crop,
             transforms.ToTensor(),
             transforms.Normalize(
                 mean=self.mean, std=self.std
@@ -104,7 +104,7 @@ class CUBS2011(data.Dataset):
         ])(img)
 
         if self.coords:
-            lbl = lbl.astype(float) / 224
+            lbl = lbl.astype(float) / 448
 
         return new_img, lbl
 

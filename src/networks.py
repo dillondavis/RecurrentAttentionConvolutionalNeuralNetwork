@@ -19,17 +19,20 @@ class VGG(nn.Module):
     """
     VGG16 with Fine Grained Classification Head
     """
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, im_size):
         super(VGG, self).__init__()
+        assert(im_size == 224 or im_size == 448)
+        pool_size = 14 if im_size == 224 else 28
+
         base_model = models.vgg19(pretrained=True)
         base_features = list(base_model.features)
         self.features = [*base_features[:-2]]
-        self.n_features = 512 * 14 * 14
+        self.n_features = 512 * pool_size * pool_size
         self.flatten_features = View(-1, self.n_features)
         self.features = nn.Sequential(*self.features)
         self.classifier = nn.Sequential(
                 *base_features[-2:],
-                View(-1, 512 * 7 * 7),
+                View(-1, 512 * pool_size//2 * pool_size//2),
                 *list(base_model.classifier.children())[:-1],
                 nn.Linear(4096, num_classes)
         )
@@ -124,7 +127,7 @@ class CropUpscale(nn.Module):
         return up_x
 
     def get_crop_corners(self, crop_params, h, w):
-        tx, ty, half_width = crop_params[0,0], crop_params[0, 1], crop_params[0, 2]/2
+        tx, ty, half_width = crop_params[0,0], crop_params[0, 1], crop_params[0, 2]//2
         txtl = torch.clamp(tx - half_width, min=0)
         txbr = torch.clamp(tx + half_width, max=h-1)
         tytl = torch.clamp(ty - half_width, min=0)
@@ -205,19 +208,19 @@ class RACNN3(nn.Module):
 class APN2(nn.Module):
     def __init__(self, num_classes, cnn):
         super(APN2, self).__init__()
-        self.cnn = cnn(num_classes)
+        self.cnn = cnn(num_classes, 448)
         for param in self.cnn.parameters():
             param.requires_grad = False
         self.apn1 = APN(self.cnn.n_features)
         self.apn2 = APN(self.cnn.n_features)
-        self.cropup = CropUpscale((224, 224))
+        self.cropup = CropUpscale((448, 448))
 
     def forward(self, x, crop_params=None):
         h = x.size(2)
         _, feats = self.cnn(x)
         crop_params1 = self.apn1(feats)
         if crop_params is not None:
-            cx, cy, hw = int(h*crop_params[0, 0]), int(h*crop_params[0, 1]), int(h*crop_params[0, 2])
+            cx, cy, hw = int(h*crop_params[0, 0]), int(h*crop_params[0, 1]), int(h*crop_params[0, 2])//2
             crop_x = x[:, :, cx-hw:cx+hw, cy-hw:cy+hw]
             crop_x = nn.Upsample(size=(h, h), mode='bilinear')(crop_x)
         else:
@@ -225,5 +228,4 @@ class APN2(nn.Module):
         _, feats = self.cnn(crop_x)
         crop_params2 = self.apn2(feats)
         return torch.cat([crop_params1, crop_params2], 1)
-
 
