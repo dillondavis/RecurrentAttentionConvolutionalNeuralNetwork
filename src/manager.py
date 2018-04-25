@@ -174,6 +174,11 @@ class Manager(object):
                     'args': vars(self.args),
                 }, fout)
 
+            if optimize_class:
+                class_epoch += 1
+            else:
+                rank_epoch += 1
+
             # Save best model, if required.
             if accuracy > best_accuracy:
                 print('Best model so far, Accuracy: %0.2f%% -> %0.2f%%' %
@@ -184,11 +189,6 @@ class Manager(object):
                 optimize_class = not optimize_class
                 #self.model.flip_apns()
                 #self.model.flip_cnns()
-
-            if optimize_class:
-                class_epoch += 1
-            else:
-                rank_epoch += 1
 
 
         print('Finished finetuning...')

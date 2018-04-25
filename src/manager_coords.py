@@ -39,7 +39,8 @@ class Manager(object):
     def eval(self):
         """Performs evaluation."""
         self.model.eval()
-        error_meter = None
+        error_meter1 = None
+        error_meter2 = None
 
         print('Performing eval...')
         for batch, label in tqdm(self.test_data_loader, desc='Eval'):
@@ -51,14 +52,18 @@ class Manager(object):
             output = self.model(batch, label)
 
             # Init error meter.
-            if error_meter is None:
-                error_meter = tnt.meter.MSEMeter()
+            if error_meter1 is None:
+                error_meter1 = tnt.meter.MSEMeter()
+                error_meter2 = tnt.meter.MSEMeter()
             label = label.data.cpu().numpy()
             output = output.data.cpu().numpy()
-            error_meter.add(output, label)
+            error_meter1.add(output[:, :3], label[:, :3])
+            error_meter2.add(output[:, 3:], label[:, 3:])
 
-        error = error_meter.value()
-        print('MSE: {}'.format(error))
+        error1 = error_meter1.value()
+        error2 = error_meter2.value()
+        print('MSE1: {}'.format(error1))
+        print('MSE2: {}'.format(error2))
         self.model.train()
 
         return error
@@ -84,7 +89,6 @@ class Manager(object):
         self.criterion(output, label).backward()
 
         # Update params.
-        # nn.utils.clip_grad.clip_grad_norm(self.model.parameters(), 1)
         optimizer.step()
 
     def do_epoch(self, epoch_idx, optimizer):
