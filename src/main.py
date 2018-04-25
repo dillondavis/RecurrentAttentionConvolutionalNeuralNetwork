@@ -14,6 +14,7 @@ FLAGS = argparse.ArgumentParser()
 FLAGS.add_argument('--arch',
                    choices=['vgg', 'resnet', 'densenet'],
                    help='Architectures', default='vgg')
+FLAGS.add_argument('--scale', choices=[2, 3], type=int)
 FLAGS.add_argument('--mode',
                    choices=['finetune', 'eval'],
                    help='Run mode', default='finetune')
@@ -66,7 +67,12 @@ def main():
         raise ValueError('Architecture %s not supported.' % (args.arch))
 
     # Load the required model.
-    model = net.RACNN3(args.num_outputs, cnn, True)
+    if args.scale == 2:
+        model = net.RACNN2(args.num_outputs, cnn, True)
+    elif args.scale == 3:
+        model = net.RACNN3(args.num_outputs, cnn, True)
+    else:
+        raise ValueError('Scale %s not supported.' % (args.arch))
 
     if args.cuda:
         model = model.cuda()
@@ -80,11 +86,13 @@ def main():
 
         # Get optimizer with correct params.
         cnn_params_to_optimize = list(model.cnn1.parameters()) + list(model.cnn2.parameters())
-        cnn_params_to_optimize += list(model.cnn3.parameters())
+        apn_params_to_optimize = list(model.apn1.parameters()) 
+        if args.scale == 3:
+            cnn_params_to_optimize += list(model.cnn3.parameters())
+            apn_params_to_optimize += list(model.apn2.parameters())
         cnn_optimizer = optim.Adam(cnn_params_to_optimize, lr=args.lr)
         cnn_optimizers = Optimizers(args)
         cnn_optimizers.add(cnn_optimizer, args.lr, args.lr_decay_every)
-        apn_params_to_optimize = list(model.apn1.parameters()) + list(model.apn2.parameters())
         apn_optimizer = optim.Adam(apn_params_to_optimize, lr=args.lr)
         apn_optimizers = Optimizers(args)
         apn_optimizers.add(apn_optimizer, args.lr, args.lr_decay_every)

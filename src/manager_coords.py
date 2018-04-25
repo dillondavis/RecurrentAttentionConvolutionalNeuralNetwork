@@ -66,7 +66,7 @@ class Manager(object):
         print('MSE2: {}'.format(error2))
         self.model.train()
 
-        return error
+        return error2
 
     def do_batch(self, optimizer, batch, label):
         """
@@ -87,7 +87,6 @@ class Manager(object):
         # Do forward-backward.
         output = self.model(batch, label)
         self.criterion(output, label).backward()
-
         # Update params.
         optimizer.step()
 

@@ -19,7 +19,7 @@ def step_lr(epoch, base_lr, lr_decay_every, lr_decay_factor, optimizer):
     return optimizer
 
 
-imsize = 448
+imsize = 224 
 
 def find_quad_params():
     f = open('../data/CUBS/image_crop_labels.txt', 'w+')

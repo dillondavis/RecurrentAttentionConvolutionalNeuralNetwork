@@ -8,6 +8,7 @@ import glob
 import os
 from PIL import Image
 
+IMSIZE = 224
 
 class CUBS2011(data.Dataset):
     def __init__(self, root, split='train', transform=False, coords=False):
@@ -20,8 +21,9 @@ class CUBS2011(data.Dataset):
         self.bw_image_ids = ['1401', '3617', '3780', '5393', '448', '3619', '5029', '6321']
         self.image_ids = self.get_image_ids()
         self.id_to_file = self.get_id_to_file()
-        crop = transforms.Compose([transforms.Resize(512), transforms.RandomCrop(448)]) if self.split == 'train' else transforms.CenterCrop(448)
+        crop = transforms.RandomCrop(IMSIZE) if self.split == 'train' else transforms.CenterCrop(IMSIZE)
         self.im_transform = transforms.Compose([
+            transforms.Resize(256),
             crop,
             transforms.ToTensor(),
             transforms.Normalize(
@@ -104,7 +106,7 @@ class CUBS2011(data.Dataset):
     def transform(self, img, lbl):
         new_img = self.im_transform(img)
         if self.coords:
-            lbl = lbl.astype(float) / 448
+            lbl = lbl.astype(float) / IMSIZE
 
         return new_img, lbl
 

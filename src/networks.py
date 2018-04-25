@@ -3,6 +3,7 @@ import numpy as np
 import torch.nn as nn
 from torchvision import models
 
+IMSIZE = 224
 
 class View(nn.Module):
     """Changes view using a nn.Module."""
@@ -114,6 +115,7 @@ class CropUpscale(nn.Module):
         h, w = x.size(2), x.size(3)
         txtl, txbr, tytl, tybr = self.get_crop_corners(crop_params, h, w)
         xtl, xbr, ytl, ybr = self.get_noise_shifted_coords(h, w, txtl, txbr, tytl, tybr)
+        assert(xtl.requires_grad and xbr.requires_grad and ytl.requires_grad and ybr.requires_grad)
 
         # Build crop mask and mask the image
         inf = torch.autograd.Variable(torch.Tensor([float('inf')]).cuda())
@@ -121,20 +123,23 @@ class CropUpscale(nn.Module):
         My = torch.sigmoid(inf * ytl) - torch.sigmoid(inf * ybr)
         M = torch.abs(torch.ger(Mx, My))
         masked_x = M * x
+        assert(Mx.requires_grad and My.requires_grad and M.requires_grad and masked_x.requires_grad)
 
         # Crop out zeroed out values from mask
         tlx, brx = int(txtl.data[0]), int(txbr.data[0])
         tly, bry = int(tytl.data[0]), int(tybr.data[0])
         crop_x = masked_x[:, :, tlx:brx, tly:bry]
         up_x = self.up(crop_x)
+        assert(up_x.requires_grad)
+
         return up_x
 
     def get_crop_corners(self, crop_params, h, w):
-        tx, ty, half_width = crop_params[0,0], crop_params[0, 1], crop_params[0, 2]//2
-        txtl = torch.clamp(tx - half_width, min=0)
-        txbr = torch.clamp(tx + half_width, max=h-1)
-        tytl = torch.clamp(ty - half_width, min=0)
-        tybr = torch.clamp(ty + half_width, max=w-1)
+        tx, ty, half_width = crop_params[0,0], crop_params[0, 1], crop_params[0, 2]/2
+        txtl = torch.clamp(tx - half_width, min=0).trunc()
+        txbr = torch.clamp(tx + half_width, max=h-1).trunc()
+        tytl = torch.clamp(ty - half_width, min=0).trunc()
+        tybr = torch.clamp(ty + half_width, max=w-1).trunc()
         return txtl, txbr, tytl, tybr
 
     def get_noise_shifted_coords(self, h, w, txtl, txbr, tytl, tybr):
@@ -148,7 +153,7 @@ class CropUpscale(nn.Module):
         '''
 	The following code only isn't compatible with torch 0.30 and up at the moment
         Bug workaround below can be found at https://github.com/JannerM/intrinsics-network/issues/3
-        xtl[xtl == 0] -= noise
+        xtl[xtl == 0] += noise
         xbr[xbr == 0] -= noise
         ytl[ytl == 0] += noise
         ybr[ybr == 0] -= noise
@@ -162,11 +167,11 @@ class CropUpscale(nn.Module):
 
 class RACNN2(nn.Module):
     def __init__(self, num_classes, cnn, init_apn=False):
-        super(RACNN3, self).__init__()
-        self.cnn1 = cnn(num_classes, 448)
+        super(RACNN2, self).__init__()
+        self.cnn1 = cnn(num_classes, IMSIZE)
         self.apn1 = APN(self.cnn1.n_features)
-        self.cropup1 = CropUpscale((448, 448))
-        self.cnn2 = cnn(num_classes, 448)
+        self.cropup1 = CropUpscale((IMSIZE, IMSIZE))
+        self.cnn2 = cnn(num_classes, IMSIZE)
         if init_apn:
             self.init_with_apn2()
 
@@ -196,13 +201,13 @@ class RACNN2(nn.Module):
 class RACNN3(nn.Module):
     def __init__(self, num_classes, cnn, init_apn=False):
         super(RACNN3, self).__init__()
-        self.cnn1 = cnn(num_classes, 448)
+        self.cnn1 = cnn(num_classes, IMSIZE)
         self.apn1 = APN(self.cnn1.n_features)
-        self.cropup1 = CropUpscale((448, 448))
-        self.cnn2 = cnn(num_classes, 448)
+        self.cropup1 = CropUpscale((IMSIZE, IMSIZE))
+        self.cnn2 = cnn(num_classes, IMSIZE)
         self.apn2 = APN(self.cnn2.n_features)
-        self.cropup2 = CropUpscale((224, 224))
-        self.cnn3 = cnn(num_classes, 448)
+        self.cropup2 = CropUpscale((IMSIZE, IMSIZE))
+        self.cnn3 = cnn(num_classes, IMSIZE)
         if init_apn:
             self.init_with_apn2()
 
@@ -238,7 +243,7 @@ class RACNN(nn.Module):
     def __init__(self, num_classes, cnn, init_racnn=False):
         super(RACNN, self).__init__()
         self.racnn = RACNN3(num_classes, cnn, False)
-        self.avg_pool1 = nn.AvgPool2d(28, 28)
+        self.avg_pool1 = nn.AvgPool2d(14, 14)
         self.avg_pool2 = nn.AvgPool2d(14, 14)
         self.avg_pool3 = nn.AvgPool2d(14, 14)
         self.fc1 = nn.Linear(1536, 200)
@@ -270,12 +275,12 @@ class RACNN(nn.Module):
 class APN2(nn.Module):
     def __init__(self, num_classes, cnn):
         super(APN2, self).__init__()
-        self.cnn = cnn(num_classes, 448)
+        self.cnn = cnn(num_classes, IMSIZE)
         for param in self.cnn.parameters():
             param.requires_grad = False
         self.apn1 = APN(self.cnn.n_features)
         self.apn2 = APN(self.cnn.n_features)
-        self.cropup = CropUpscale((448, 448))
+        self.cropup = CropUpscale((IMSIZE, IMSIZE))
 
     def forward(self, x, crop_params=None):
         h = x.size(2)

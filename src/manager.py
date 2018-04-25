@@ -52,27 +52,28 @@ class Manager(object):
     def eval(self):
         """Performs evaluation."""
         self.model.eval()
-        error_meter = None
+        error_meters = None
 
         print('Performing eval...')
         for batch, label in tqdm(self.test_data_loader, desc='Eval'):
             if self.cuda:
                 batch = batch.cuda()
             batch = Variable(batch, volatile=True)
-            scores1, scores2, scores3 = self.model(batch)
+            scores = self.model(batch)
 
             # Init error meter.
-            output = scores3.data.view(-1, scores3.size(1))
+            outputs = [score.data.view(-1, score.size(1)) for score in scores]
             label = label.view(-1)
             if error_meter is None:
                 topk = [1]
-                if output.size(1) > 5:
+                if outputs[0].size(1) > 5:
                     topk.append(5)
-                error_meter = tnt.meter.ClassErrorMeter(topk=topk)
-            error_meter.add(output, label)
+                error_meters = [tnt.meter.ClassErrorMeter(topk=topk) for _ in range(self.args.scale)]
+            map(lambda error_meter, output: error_meter.add(output, label), zip(error_meters, ouputs))
 
-        errors = error_meter.value()
-        print('Error: ' + ', '.join('@%s=%.2f' % t for t in zip(topk, errors)))
+        errors = [error_meter.value() for error_meter in error_meters]
+        for i, error in enumerate(errors):
+            print('Scale {} Error: '.format(i+1) + ', '.join('@%s=%.2f' % t for t in zip(topk, error)))
         self.model.train()
 
         return errors
@@ -94,14 +95,24 @@ class Manager(object):
         self.model.zero_grad()
 
         # Do forward-backward.
-        scores1, scores2, scores3 = self.model(batch)
-        if optimize_class:
-            self.criterion_class(scores1, label).backward(retain_graph=True)
-            self.criterion_class(scores2, label).backward(retain_graph=True)
-            self.criterion_class(scores3, label).backward()
+        if self.args.scale == 3:
+            scores1, scores2, scores3 = self.model(batch)
+            if optimize_class:
+                self.criterion_class(scores1, label).backward(retain_graph=True)
+                self.criterion_class(scores2, label).backward(retain_graph=True)
+                self.criterion_class(scores3, label).backward()
+            else:
+                self.criterion_rank(scores1, scores2, label).backward(retain_graph=True)
+                self.criterion_rank(scores2, scores3, label).backward()
+        elif self.args.scale == 2:
+            scores1, scores2 = self.model(batch)
+            if optimize_class:
+                self.criterion_class(scores1, label).backward(retain_graph=True)
+                self.criterion_class(scores2, label).backward()
+            else:
+                self.criterion_rank(scores1, scores2, label).backward()
         else:
-            self.criterion_rank(scores1, scores2, label).backward(retain_graph=True)
-            self.criterion_rank(scores2, scores3, label).backward()
+            raise ValueError('Scale %s not supported.' % (self.args.scale))
 
         # Update params.
         optimizer.step()
@@ -148,7 +159,6 @@ class Manager(object):
         optimize_class = True
         class_epoch = 0
         rank_epoch = 0
-        #self.model.flip_apns()
 
         if self.args.cuda:
             self.model = self.model.cuda()
@@ -164,8 +174,8 @@ class Manager(object):
             self.model.train()
             self.do_epoch(epoch_idx, optimizer, optimize_class=optimize_class)
             errors = self.eval()
+            accuracy = 100 - errors[-1][0]  # Top-1 accuracy.
             error_history.append(errors)
-            accuracy = 100 - errors[0]  # Top-1 accuracy.
 
             # Save performance history and stats.
             with open(savename + '.json', 'w') as fout:
@@ -187,8 +197,6 @@ class Manager(object):
                 self.save_model(epoch_idx, best_accuracy, errors, savename)
             elif np.abs(best_accuracy - accuracy) < self.args.converge_acc_diff:
                 optimize_class = not optimize_class
-                #self.model.flip_apns()
-                #self.model.flip_cnns()
 
 
         print('Finished finetuning...')
