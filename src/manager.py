@@ -60,16 +60,16 @@ class Manager(object):
                 batch = batch.cuda()
             batch = Variable(batch, volatile=True)
             scores = self.model(batch)
-
             # Init error meter.
             outputs = [score.data.view(-1, score.size(1)) for score in scores]
             label = label.view(-1)
-            if error_meter is None:
+            if error_meters is None:
                 topk = [1]
                 if outputs[0].size(1) > 5:
                     topk.append(5)
                 error_meters = [tnt.meter.ClassErrorMeter(topk=topk) for _ in range(self.args.scale)]
-            map(lambda error_meter, output: error_meter.add(output, label), zip(error_meters, ouputs))
+            for error_meter, output in zip(error_meters, outputs):
+                error_meter.add(output, label)
 
         errors = [error_meter.value() for error_meter in error_meters]
         for i, error in enumerate(errors):
@@ -95,25 +95,17 @@ class Manager(object):
         self.model.zero_grad()
 
         # Do forward-backward.
-        if self.args.scale == 3:
-            scores1, scores2, scores3 = self.model(batch)
-            if optimize_class:
-                self.criterion_class(scores1, label).backward(retain_graph=True)
-                self.criterion_class(scores2, label).backward(retain_graph=True)
-                self.criterion_class(scores3, label).backward()
-            else:
-                self.criterion_rank(scores1, scores2, label).backward(retain_graph=True)
-                self.criterion_rank(scores2, scores3, label).backward()
-        elif self.args.scale == 2:
-            scores1, scores2 = self.model(batch)
-            if optimize_class:
-                self.criterion_class(scores1, label).backward(retain_graph=True)
-                self.criterion_class(scores2, label).backward()
-            else:
-                self.criterion_rank(scores1, scores2, label).backward()
-        else:
-            raise ValueError('Scale %s not supported.' % (self.args.scale))
-
+        scores = self.model(batch)
+        if optimize_class:
+            for i in range(len(scores)-1, -1, -1): 
+                if optimize_class:
+                    retain_graph = i > 0
+                    self.criterion_class(scores[i], label).backward(retain_graph=retain_graph)
+       	else: 
+            for i in range(len(scores)-1, 0, -1): 
+                retain_graph = (i-1) > 0
+                self.criterion_rank(scores[i-1], scores[i], label).backward(retain_graph=retain_graph)
+                
         # Update params.
         optimizer.step()
 
@@ -169,13 +161,13 @@ class Manager(object):
             epoch_type = 'Class' if optimize_class else 'Rank'
             print('Optimize {} Epoch: {}'.format(epoch_type, epoch_idx))
 
+            errors = self.eval()
+            accuracy = 100 - errors[-1][0]  # Top-1 accuracy.
+            error_history.append(errors)
             optimizer = cnn_optimizer if optimize_class else apn_optimizer
             optimizer.update_lr(epoch_idx)
             self.model.train()
             self.do_epoch(epoch_idx, optimizer, optimize_class=optimize_class)
-            errors = self.eval()
-            accuracy = 100 - errors[-1][0]  # Top-1 accuracy.
-            error_history.append(errors)
 
             # Save performance history and stats.
             with open(savename + '.json', 'w') as fout:

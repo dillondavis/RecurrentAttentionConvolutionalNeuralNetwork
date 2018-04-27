@@ -96,6 +96,7 @@ def main():
         apn_optimizer = optim.Adam(apn_params_to_optimize, lr=args.lr)
         apn_optimizers = Optimizers(args)
         apn_optimizers.add(apn_optimizer, args.lr, args.lr_decay_every)
+        import pdb; pdb.set_trace()
 
         manager.train(args.finetune_epochs, cnn_optimizers,
                       apn_optimizers, savename=args.save_prefix)

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage:
-# ./run_model_coords.sh 3 1 vgg 30 ../data/CUBS
+# ./run_model_coords.sh 3 1 vgg 30 ../data/CUBS 1e-2
 
 # This is hard-coded to prevent silly mistakes.
 declare -A NUM_OUTPUTS
@@ -11,7 +11,7 @@ NUM_RUNS=$2
 ARCH=$3
 NUM_EPOCHS=$4
 DATA_ROOT=$5
-LR=1e-6
+LR=$6
 
 for RUN_ID in `seq 1 $NUM_RUNS`;
 do

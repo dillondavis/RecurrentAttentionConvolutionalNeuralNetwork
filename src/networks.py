@@ -115,7 +115,7 @@ class CropUpscale(nn.Module):
         h, w = x.size(2), x.size(3)
         txtl, txbr, tytl, tybr = self.get_crop_corners(crop_params, h, w)
         xtl, xbr, ytl, ybr = self.get_noise_shifted_coords(h, w, txtl, txbr, tytl, tybr)
-        assert(xtl.requires_grad and xbr.requires_grad and ytl.requires_grad and ybr.requires_grad)
+        assert(not self.training or (xtl.requires_grad and xbr.requires_grad and ytl.requires_grad and ybr.requires_grad))
 
         # Build crop mask and mask the image
         inf = torch.autograd.Variable(torch.Tensor([float('inf')]).cuda())
@@ -123,14 +123,15 @@ class CropUpscale(nn.Module):
         My = torch.sigmoid(inf * ytl) - torch.sigmoid(inf * ybr)
         M = torch.abs(torch.ger(Mx, My))
         masked_x = M * x
-        assert(Mx.requires_grad and My.requires_grad and M.requires_grad and masked_x.requires_grad)
+        assert(not self.training or (Mx.requires_grad and My.requires_grad and M.requires_grad and masked_x.requires_grad))
 
         # Crop out zeroed out values from mask
         tlx, brx = int(txtl.data[0]), int(txbr.data[0])
         tly, bry = int(tytl.data[0]), int(tybr.data[0])
+        assert(int(M.sum()) == (brx - tlx + 1) * (bry - tly + 1))
         crop_x = masked_x[:, :, tlx:brx, tly:bry]
         up_x = self.up(crop_x)
-        assert(up_x.requires_grad)
+        assert(not self.training or up_x.requires_grad)
 
         return up_x
 
