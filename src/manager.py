@@ -96,16 +96,17 @@ class Manager(object):
 
         # Do forward-backward.
         scores = self.model(batch)
-        if optimize_class:
-            for i in range(len(scores)-1, -1, -1): 
-                if optimize_class:
-                    retain_graph = i > 0
-                    self.criterion_class(scores[i], label).backward(retain_graph=retain_graph)
-       	else: 
-            for i in range(len(scores)-1, 0, -1): 
-                retain_graph = (i-1) > 0
-                self.criterion_rank(scores[i-1], scores[i], label).backward(retain_graph=retain_graph)
-                
+        self.criterion_class(scores[0], label).backward()
+        # if optimize_class:
+        #     for i in range(len(scores)-1, -1, -1):
+        #         if optimize_class:
+        #             retain_graph = i > 0
+        #             self.criterion_class(scores[i], label).backward(retain_graph=retain_graph)
+       	# else:
+        #     for i in range(len(scores)-1, 0, -1):
+        #         retain_graph = (i-1) > 0
+        #         self.criterion_rank(scores[i-1], scores[i], label).backward(retain_graph=retain_graph)
+
         # Update params.
         optimizer.step()
 
@@ -164,7 +165,7 @@ class Manager(object):
             errors = self.eval()
             accuracy = 100 - errors[-1][0]  # Top-1 accuracy.
             error_history.append(errors)
-            optimizer = cnn_optimizer if optimize_class else apn_optimizer
+            optimizer = cnn_optimizer #if optimize_class else apn_optimizer
             optimizer.update_lr(epoch_idx)
             self.model.train()
             self.do_epoch(epoch_idx, optimizer, optimize_class=optimize_class)
