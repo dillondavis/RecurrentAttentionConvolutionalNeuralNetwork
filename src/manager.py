@@ -161,13 +161,13 @@ class Manager(object):
             epoch_type = 'Class' if optimize_class else 'Rank'
             print('Optimize {} Epoch: {}'.format(epoch_type, epoch_idx))
 
-            errors = self.eval()
-            accuracy = 100 - errors[-1][0]  # Top-1 accuracy.
-            error_history.append(errors)
             optimizer = cnn_optimizer if optimize_class else apn_optimizer
             optimizer.update_lr(epoch_idx)
             self.model.train()
             self.do_epoch(epoch_idx, optimizer, optimize_class=optimize_class)
+            errors = self.eval()
+            accuracy = 100 - errors[-1][0]  # Top-1 accuracy.
+            error_history.append(errors)
 
             # Save performance history and stats.
             with open(savename + '.json', 'w') as fout:
