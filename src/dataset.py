@@ -68,7 +68,7 @@ class CUBS2011(data.Dataset):
 
     def get_id_to_coords(self):
         id_to_coords = {}
-        lbl_file = os.path.join(self.root, 'image_crop_labels.txt')
+        lbl_file = os.path.join(self.root, 'image_crop_labels_random2.txt')
         with open(lbl_file) as f:
             for line in f:
                 split = line.split()

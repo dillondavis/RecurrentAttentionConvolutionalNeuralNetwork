@@ -22,7 +22,7 @@ def step_lr(epoch, base_lr, lr_decay_every, lr_decay_factor, optimizer):
 imsize = 224 
 
 def find_quad_params():
-    f = open('../data/CUBS/image_crop_labels.txt', 'w+')
+    f = open('../data/CUBS/image_crop_labels_random2.txt', 'w+')
     cnn = VGG(200, imsize).cuda()
     num_scales = 2
     train_data = dataset.train_loader_cubs('../data/CUBS', 1, shuffle=False)
@@ -43,7 +43,7 @@ def find_quad_params():
                              (h//2 + hdiff//2, w//2 + wdiff//2)]
             centers = []
             for j in range(num_scales):
-                img, best_center = get_best_quad(img, cnn, split_centers)
+                img, best_center = get_random_quad(img, cnn, im_range, im_range)
                 centers.extend(best_center)
                 centers.append(h//2)
             f.write("{} {} {} {} {} {} {}\n".format(img_id, *centers))
@@ -58,8 +58,8 @@ def get_best_quad(img, model, split_centers):
 
 
 def get_random_quad(img, model, h_range, w_range):
-    hs = np.random.choice(h_range, 10)
-    ws = np.random.choice(w_range, 10)
+    hs = np.random.choice(h_range, 30)
+    ws = np.random.choice(w_range, 30)
     up = nn.Upsample(size=(imsize, imsize), mode='bilinear')
     splits = [up(img[:, :, h:h+imsize//2, w:w+imsize//2]) for h, w in zip(hs, ws)]
     responses = [model(split)[1].data.norm() for split in splits]

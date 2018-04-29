@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage:
-# ./run_model_coords.sh 3 1 vgg 30 ../data/CUBS 1e-2
+# ./run_model_coords.sh 3 1 vgg 30 ../data/CUBS 1e-4
 
 # This is hard-coded to prevent silly mistakes.
 declare -A NUM_OUTPUTS
@@ -28,7 +28,7 @@ do
     CUDA_VISIBLE_DEVICES=$GPU_ID python main_coords.py --mode finetune --arch $ARCH \
       --dataset $DATASET --num_outputs ${NUM_OUTPUTS[$DATASET]} --batch_size 1\
       --lr $LR  --lr_decay_every $LR_DECAY_EVERY \
-      --lr_decay_factor 1e-1 --finetune_epochs $NUM_EPOCHS \
+      --lr_decay_factor 1e-4 --finetune_epochs $NUM_EPOCHS \
       --train_path $DATA_ROOT --test_path $DATA_ROOT\
       --save_prefix $CKPT_DIR'/'$TAG'.pt' | tee $LOG_DIR'/'$TAG'.txt'
   done

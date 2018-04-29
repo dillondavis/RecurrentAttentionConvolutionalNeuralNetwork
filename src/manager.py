@@ -181,14 +181,14 @@ class Manager(object):
             else:
                 rank_epoch += 1
 
+            if (accuracy - best_accuracy) < self.args.converge_acc_diff:
+                optimize_class = not optimize_class
             # Save best model, if required.
             if accuracy > best_accuracy:
                 print('Best model so far, Accuracy: %0.2f%% -> %0.2f%%' %
                       (best_accuracy, accuracy))
                 best_accuracy = accuracy
                 self.save_model(epoch_idx, best_accuracy, errors, savename)
-            elif np.abs(best_accuracy - accuracy) < self.args.converge_acc_diff:
-                optimize_class = not optimize_class
 
 
         print('Finished finetuning...')
