@@ -94,10 +94,12 @@ class APN(nn.Module):
         self.regressor1 = nn.Tanh()
         self.fc2 = nn.Linear(1024, 3)
         self.regressor2 = nn.Sigmoid()
+        self.negsqnorm = NegSquareNormGradients.apply
 
     def forward(self, x):
         params = self.regressor1(self.fc1(x))
         params = self.regressor2(self.fc2(params))
+        params = self.negsqnorm(params)
         return params
 
 
@@ -136,7 +138,6 @@ class CropUpscale(nn.Module):
     def __init__(self, target_size):
         super(CropUpscale, self).__init__()
         self.up = nn.Upsample(size=target_size, mode='bilinear')
-        self.negsqnorm = NegSquareNormGradients.apply
 
     def forward(self, x, crop_params):
         # Get crop corner coords and shifted x and y range of image
@@ -159,7 +160,6 @@ class CropUpscale(nn.Module):
         assert(int(M.sum()) == (brx - tlx + 1) * (bry - tly + 1))
         crop_x = masked_x[:, :, tlx:brx, tly:bry]
         up_x = self.up(crop_x)
-        up_x = self.negsqnorm(up_x)
         assert(not self.training or up_x.requires_grad)
 
         return up_x
@@ -226,6 +226,16 @@ class RACNN2(nn.Module):
     def init_with_apn2(self):
         ckpt = torch.load('../checkpoints/CUBS/apn2.pt.pt')
         self.apn1.load_state_dict(ckpt['apn1_state_dict'])
+
+    def flip_cnn_grads(self):
+        for param in self.cnn1.parameters():
+            param.requires_grad = not param.requires_grad
+        for param in self.cnn2.parameters():
+            param.requires_grad = not param.requires_grad
+
+    def flip_apn_grads(self):
+        for param in self.apn1.parameters():
+            param.requires_grad = not param.requires_grad
 
 
 class RACNN3(nn.Module):

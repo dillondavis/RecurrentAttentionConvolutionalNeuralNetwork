@@ -151,6 +151,7 @@ class Manager(object):
         optimize_class = True
         class_epoch = 0
         rank_epoch = 0
+        self.model.flip_apn_grads()
 
         if self.args.cuda:
             self.model = self.model.cuda()
@@ -183,6 +184,8 @@ class Manager(object):
 
             if (accuracy - best_accuracy) < self.args.converge_acc_diff:
                 optimize_class = not optimize_class
+                self.model.flip_cnn_grads()
+                self.model.flip_apn_grads()
             # Save best model, if required.
             if accuracy > best_accuracy:
                 print('Best model so far, Accuracy: %0.2f%% -> %0.2f%%' %
