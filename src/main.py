@@ -21,8 +21,10 @@ FLAGS.add_argument('--mode',
 FLAGS.add_argument('--num_outputs', type=int, default=-1,
                    help='Num outputs for dataset')
 # Optimization options.
-FLAGS.add_argument('--lr', type=float,
-                   help='Learning rate for parameters, used for baselines')
+FLAGS.add_argument('--lr_cnn', type=float,
+                   help='Learning rate for parameters used for cnns')
+FLAGS.add_argument('--lr_apn', type=float,
+                   help='Learning rate for parameters used for apns')
 FLAGS.add_argument('--lr_decay_every', type=int,
                    help='Step decay every this many epochs')
 FLAGS.add_argument('--lr_decay_factor', type=float,
@@ -82,7 +84,7 @@ def main():
 
     # Perform necessary mode operations.
     if args.mode == 'finetune':
-        assert args.lr and args.lr_decay_every
+        assert args.lr_cnn and args.lr_apn and args.lr_decay_every
 
         # Get optimizer with correct params.
         cnn_params_to_optimize = list(model.cnn1.parameters()) + list(model.cnn2.parameters())
@@ -90,12 +92,12 @@ def main():
         if args.scale == 3:
             cnn_params_to_optimize += list(model.cnn3.parameters())
             apn_params_to_optimize += list(model.apn2.parameters())
-        cnn_optimizer = optim.Adam(cnn_params_to_optimize, lr=args.lr)
+        cnn_optimizer = optim.Adam(cnn_params_to_optimize, lr=args.lr_cnn)
         cnn_optimizers = Optimizers(args)
-        cnn_optimizers.add(cnn_optimizer, args.lr, args.lr_decay_every)
-        apn_optimizer = optim.Adam(apn_params_to_optimize, lr=args.lr)
+        cnn_optimizers.add(cnn_optimizer, args.lr_cnn, args.lr_decay_every)
+        apn_optimizer = optim.Adam(apn_params_to_optimize, lr=args.lr_apn)
         apn_optimizers = Optimizers(args)
-        apn_optimizers.add(apn_optimizer, args.lr, args.lr_decay_every)
+        apn_optimizers.add(apn_optimizer, args.lr_apn, args.lr_decay_every)
 
         manager.train(args.finetune_epochs, cnn_optimizers,
                       apn_optimizers, savename=args.save_prefix)

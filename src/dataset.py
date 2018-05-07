@@ -21,12 +21,8 @@ class CUBS2011(data.Dataset):
         self.bw_image_ids = ['1401', '3617', '3780', '5393', '448', '3619', '5029', '6321']
         self.image_ids = self.get_image_ids()
         self.id_to_file = self.get_id_to_file()
-        crop = transforms.RandomCrop(IMSIZE) if self.split == 'train' else transforms.CenterCrop(IMSIZE)
-        flip = transforms.RandomHorizontalFlip() if self.split == 'train' else lambda x: x
         self.im_transform = transforms.Compose([
-            transforms.Resize(256),
-            crop,
-            flip,
+            transforms.Resize((IMSIZE, IMSIZE)),
             transforms.ToTensor(),
             transforms.Normalize(
                 mean=self.mean, std=self.std

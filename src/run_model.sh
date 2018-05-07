@@ -12,7 +12,8 @@ ARCH=$3
 NUM_EPOCHS=$4
 DATA_ROOT=$5
 SCALE=$6
-LR=1e-5
+LR_CNN=1e-5
+LR_APN=1e-8
 
 for RUN_ID in `seq 1 $NUM_RUNS`;
 do
@@ -28,8 +29,8 @@ do
 
     CUDA_VISIBLE_DEVICES=$GPU_ID python main.py --mode finetune --arch $ARCH \
       --dataset $DATASET --num_outputs ${NUM_OUTPUTS[$DATASET]} --batch_size 1 \
-      --lr $LR  --lr_decay_every $LR_DECAY_EVERY --scale $SCALE\
-      --lr_decay_factor 0.1 --finetune_epochs $NUM_EPOCHS \
+      --lr_cnn $LR_CNN --lr_decay_every $LR_DECAY_EVERY --lr_apn $LR_APN \
+      --lr_decay_factor 0.1 --finetune_epochs $NUM_EPOCHS --scale $SCALE \
       --train_path $DATA_ROOT --test_path $DATA_ROOT\
       --save_prefix $CKPT_DIR'/'$TAG'.pt' | tee $LOG_DIR'/'$TAG'.txt'
   done
