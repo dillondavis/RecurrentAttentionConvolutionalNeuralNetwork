@@ -19,7 +19,7 @@ do
   for DATASET in CUBS; do
     mkdir ../checkpoints/$DATASET
     mkdir ../logs/$DATASET
-    LR_DECAY_EVERY=45
+    LR_DECAY_EVERY=10
     LOG_DIR=../logs/$DATASET/$FT_LAYERS
     mkdir $LOG_DIR
     CKPT_DIR=../checkpoints/$DATASET/$FT_LAYERS

@@ -67,7 +67,7 @@ class Manager(object):
                 topk = [1]
                 if outputs[0].size(1) > 5:
                     topk.append(5)
-                error_meters = [tnt.meter.ClassErrorMeter(topk=topk) for _ in range(self.args.scale)]
+                error_meters = [tnt.meter.ClassErrorMeter(topk=topk) for _ in outputs]
             for error_meter, output in zip(error_meters, outputs):
                 error_meter.add(output, label)
 
@@ -93,7 +93,6 @@ class Manager(object):
 
         # Set grads to 0.
         self.model.zero_grad()
-
         # Do forward-backward.
         scores = self.model(batch)
         if optimize_class:
@@ -151,7 +150,7 @@ class Manager(object):
         optimize_class = True
         class_epoch = 0
         rank_epoch = 0
-        self.model.flip_apn_grads()
+        #self.model.flip_apn_grads()
 
         if self.args.cuda:
             self.model = self.model.cuda()
@@ -184,8 +183,8 @@ class Manager(object):
 
             if (accuracy - best_accuracy) < self.args.converge_acc_diff:
                 optimize_class = not optimize_class
-                self.model.flip_cnn_grads()
-                self.model.flip_apn_grads()
+                #self.model.flip_cnn_grads()
+                #self.model.flip_apn_grads()
             # Save best model, if required.
             if accuracy > best_accuracy:
                 print('Best model so far, Accuracy: %0.2f%% -> %0.2f%%' %

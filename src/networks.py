@@ -57,33 +57,6 @@ class VGG(nn.Module):
         return out, self.flatten_features(feats)
 
 
-class ResNet(nn.Module):
-    """
-    ResNet50 with Fine Grained Classification Head
-    """
-    def __init__(self, num_classes):
-        super(ResNet, self).__init__()
-        base_model = models.resnet50(pretrained=True)
-        base_features = [x for x in base_model.children()][:-1]
-        self.n_features = 2048 * 7 * 7
-        self.features = nn.Sequential(*base_features)
-        self.classifier = nn.Sequential(
-            nn.Linear(self.n_features, num_classes),
-        )
-
-    def forward(self, x):
-        """
-        Applies ResNet forward pass for class wise scores
-        :param input: (num_batch, 3, h, w) np array batch of images to find class wise scores of
-        :return: (num_batch, num_classes) np array of class wise scores per image
-        """
-        feats = self.features(x)
-        feats = feats.view(x.size(0), -1)
-        out = self.classifier(feats)
-
-        return out, feats
-
-
 class APN(nn.Module):
     """
     Attention Proposal Network
@@ -147,7 +120,7 @@ class CropUpscale(nn.Module):
         assert(not self.training or (xtl.requires_grad and xbr.requires_grad and ytl.requires_grad and ybr.requires_grad))
 
         # Build crop mask and mask the image
-        inf = torch.autograd.Variable(torch.Tensor([float('inf')]).cuda())
+        inf = torch.autograd.Variable(torch.Tensor([10]).cuda())
         Mx = torch.sigmoid(inf * xtl) - torch.sigmoid(inf * xbr)
         My = torch.sigmoid(inf * ytl) - torch.sigmoid(inf * ybr)
         M = torch.abs(torch.ger(Mx, My))
@@ -157,7 +130,7 @@ class CropUpscale(nn.Module):
         # Crop out zeroed out values from mask
         tlx, brx = int(txtl.data[0]), int(txbr.data[0])
         tly, bry = int(tytl.data[0]), int(tybr.data[0])
-        assert(int(M.sum()) == (brx - tlx + 1) * (bry - tly + 1))
+        #assert(int(M.sum()) == (brx - tlx + 1) * (bry - tly + 1))
         crop_x = masked_x[:, :, tlx:brx, tly:bry]
         up_x = self.up(crop_x)
         assert(not self.training or up_x.requires_grad)
