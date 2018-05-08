@@ -13,7 +13,6 @@ from tqdm import tqdm
 from torch.autograd import Variable
 
 
-
 class RankLoss(nn.Module):
     def __init__(self, margin):
         super(RankLoss, self).__init__()
