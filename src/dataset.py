@@ -11,7 +11,8 @@ from PIL import Image
 IMSIZE = 224
 
 class CUBS2011(data.Dataset):
-    def __init__(self, root, split='train', transform=False, coords=False):
+    def __init__(self, root, split='train', transform=False, 
+		coords=False, flipcrop=False):
         self.root = root
         self.split = split
         self.coords = coords
@@ -21,13 +22,26 @@ class CUBS2011(data.Dataset):
         self.bw_image_ids = ['1401', '3617', '3780', '5393', '448', '3619', '5029', '6321']
         self.image_ids = self.get_image_ids()
         self.id_to_file = self.get_id_to_file()
-        self.im_transform = transforms.Compose([
-            transforms.Resize((IMSIZE, IMSIZE)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=self.mean, std=self.std
-            )
-        ])
+        if flipcrop:
+            crop = transforms.RandomCrop(IMSIZE) if self.split == 'train' else transforms.CenterCrop(IMSIZE)
+            flip = transforms.RandomHorizontalFlip() if self.split == 'train' else lambda x: x
+            self.im_transform = transforms.Compose([
+                transforms.Resize((256)),
+                crop,
+                flip, 
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=self.mean, std=self.std
+                )
+            ])
+        else:
+            self.im_transform = transforms.Compose([
+                transforms.Resize((IMSIZE, IMSIZE)),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=self.mean, std=self.std
+                )
+            ])
         if coords:
             self.id_to_coords = self.get_id_to_coords()
         else:
@@ -64,7 +78,7 @@ class CUBS2011(data.Dataset):
 
     def get_id_to_coords(self):
         id_to_coords = {}
-        lbl_file = os.path.join(self.root, 'image_crop_labels_random2.txt')
+        lbl_file = os.path.join(self.root, 'image_crop_labels.txt')
         with open(lbl_file) as f:
             for line in f:
                 split = line.split()
@@ -109,9 +123,9 @@ class CUBS2011(data.Dataset):
         return new_img, lbl
 
 
-def train_loader_cubs(path, batch_size, num_workers=4, pin_memory=False, normalize=None, transform=True, shuffle=True, coords=False):
-    return data.DataLoader(CUBS2011(path, transform=transform, coords=coords), batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
+def train_loader_cubs(path, batch_size, num_workers=4, pin_memory=False, normalize=None, transform=True, shuffle=True, coords=False, flipcrop=False):
+    return data.DataLoader(CUBS2011(path, transform=transform, coords=coords, flipcrop=flipcrop), batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
 
 
-def test_loader_cubs(path, batch_size, num_workers=4, pin_memory=False, normalize=None, transform=True, shuffle=True, coords=False):
-    return data.DataLoader(CUBS2011(path, split='test', transform=transform, coords=coords), batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
+def test_loader_cubs(path, batch_size, num_workers=4, pin_memory=False, normalize=None, transform=True, shuffle=True, coords=False, flipcrop=False):
+    return data.DataLoader(CUBS2011(path, split='test', transform=transform, coords=coords, flipcrop=flipcrop), batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)

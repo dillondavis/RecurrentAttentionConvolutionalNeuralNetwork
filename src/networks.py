@@ -44,8 +44,7 @@ class VGG(nn.Module):
             if isinstance(mod, nn.ReLU):
                 mod.inplace = False
 
-
-    def forward(self, x):
+    def forward(self, x, flatten=True):
         """
         Applies VGG16 forward pass for class wise scores
         :param input: (num_batch, 3, h, w) np array batch of images to find class wise scores of
@@ -53,8 +52,10 @@ class VGG(nn.Module):
         """
         feats = self.features(x)
         out = self.classifier(feats)
+        if flatten:
+            feats = self.flatten_features(feats)
 
-        return out, self.flatten_features(feats)
+        return out, feats
 
 
 class APN(nn.Module):
@@ -178,18 +179,18 @@ class RACNN2(nn.Module):
         if init_apn:
             self.init_with_apn2()
 
-    def forward(self, x, feats=False):
+    def forward(self, x, feats=False, flatten=True):
         """
         Applies VGG16 forward pass for class wise scores
         :param input: (1, 3, h, w) np array batch of images to find class wise scores of
         :return: (1, num_classes) np array of class wise scores per image
         """
         h, w = x.size(2), x.size(3)
-        scores1, feats1 = self.cnn1(x)
-        crop_params1 = self.apn1(feats1)
+        scores1, feats1 = self.cnn1(x, flatten=flatten)
+        crop_params1 = self.apn1(feats1.view(-1, self.cnn1.n_features))
 
         crop_x1 = self.cropup1(x, h*crop_params1)
-        scores2, feats2 = self.cnn2(crop_x1)
+        scores2, feats2 = self.cnn2(crop_x1, flatten=flatten)
 
         if feats:
             return feats1, feats2
@@ -224,22 +225,22 @@ class RACNN3(nn.Module):
         if init_apn:
             self.init_with_apn2()
 
-    def forward(self, x, feats=False):
+    def forward(self, x, feats=False, flatten=True):
         """
         Applies VGG16 forward pass for class wise scores
         :param input: (1, 3, h, w) np array batch of images to find class wise scores of
         :return: (1, num_classes) np array of class wise scores per image
         """
         h, w = x.size(2), x.size(3)
-        scores1, feats1 = self.cnn1(x)
-        crop_params1 = self.apn1(feats1)
+        scores1, feats1 = self.cnn1(x, flatten=flatten)
+        crop_params1 = self.apn1(feats1.view(-1, self.cnn1.n_features))
 
         crop_x1 = self.cropup1(x, h*crop_params1)
-        scores2, feats2 = self.cnn2(crop_x1)
-        crop_params2 = self.apn2(feats2)
+        scores2, feats2 = self.cnn2(crop_x1, flatten=flatten)
+        crop_params2 = self.apn2(feats2.view(-1, self.cnn2.n_features))
 
         crop_x2 = self.cropup2(crop_x1, h*crop_params2)
-        scores3, feats3 = self.cnn3(crop_x2)
+        scores3, feats3 = self.cnn3(crop_x2, flatten=flatten)
 
         if feats:
             return feats1, feats2, feats3
@@ -251,16 +252,35 @@ class RACNN3(nn.Module):
         self.apn1.load_state_dict(ckpt['apn1_state_dict'])
         self.apn2.load_state_dict(ckpt['apn2_state_dict'])
 
+    def flip_cnn_grads(self):
+        for param in self.cnn1.parameters():
+            param.requires_grad = not param.requires_grad
+        for param in self.cnn2.parameters():
+            param.requires_grad = not param.requires_grad
+        for param in self.cnn3.parameters():
+            param.requires_grad = not param.requires_grad
+
+    def flip_apn_grads(self):
+        for param in self.apn1.parameters():
+            param.requires_grad = not param.requires_grad
+        for param in self.apn2.parameters():
+            param.requires_grad = not param.requires_grad
+
 
 class RACNN(nn.Module):
-    def __init__(self, num_classes, cnn, init_racnn=False):
+    def __init__(self, num_classes, cnn, scale=3, init_racnn=False):
         super(RACNN, self).__init__()
-        self.racnn = RACNN3(num_classes, cnn, False)
-        self.avg_pool1 = nn.AvgPool2d(14, 14)
-        self.avg_pool2 = nn.AvgPool2d(14, 14)
-        self.avg_pool3 = nn.AvgPool2d(14, 14)
-        self.fc1 = nn.Linear(1536, 200)
-        self.fc2 = nn.Linear(1024, 200)
+        self.scale = scale
+        if scale == 2:
+            self.racnn = RACNN2(num_classes, cnn, False)
+        elif scale == 3:
+            self.racnn = RACNN3(num_classes, cnn, False)
+        for param in self.racnn.parameters():
+            param.requires_grad = False
+        self.avg_pool = nn.AvgPool2d(14, 14)
+        self.racnn.eval()
+        n_features = 1024 if scale == 2 else 1536
+        self.fc = nn.Linear(n_features, 200)
         if init_racnn:
             self.init_with_racnn()
 
@@ -270,19 +290,18 @@ class RACNN(nn.Module):
         :param input: (1, 3, h, w) np array batch of images to find class wise scores of
         :return: (1, num_classes) np array of class wise scores per image
         """
-        feats1, feats2, feats3 = self.racnn(x, True)
-        feats1 = 0.1 * self.avg_pool1(feats1).view(-1, 512)
-        feats2 = 0.1 * self.avg_pool2(feats2).view(-1, 512)
-        feats3 = 0.1 * self.avg_pool3(feats3).view(-1, 512)
-        feats12 = torch.cat([feats1, feats2])
-        feats123 = torch.cat([feats12, feats3])
-        scores1 = self.fc1(feats12)
-        scores2 = self.fc1(feats123)
-        return scores1, scores2
+        feats = self.racnn(x, feats=True, flatten=False)
+        feats = [0.1 * self.avg_pool(feat).view(-1, 512) for feat in feats]
+        feats = torch.cat(feats, dim=1)
+        return self.fc(feats)
 
     def init_with_racnn(self):
-        ckpt = torch.load('../checkpoints/CUBS/racnn3.pt.pt')
-        self.racnn.load_state_dict(ckpt['racnn3_state_dict'])
+        ckpt = torch.load('../checkpoints/CUBS/racnn{}.pt.pt'.format(self.scale))
+        self.racnn.load_state_dict(ckpt['state_dict'])
+	
+    def train(self, mode=True):
+        self.training = mode
+        self.fc.train(mode)
 
 
 class APN2(nn.Module):
