@@ -95,15 +95,15 @@ class Manager(object):
         # Do forward-backward.
         scores = self.model(batch)
         if optimize_class:
-            for i in range(len(scores)-1, -1, -1): 
+            for i in range(len(scores)-1, -1, -1):
                 if optimize_class:
                     retain_graph = i > 0
                     self.criterion_class(scores[i], label).backward(retain_graph=retain_graph)
-       	else: 
-            for i in range(len(scores)-1, 0, -1): 
+       	else:
+            for i in range(len(scores)-1, 0, -1):
                 retain_graph = (i-1) > 0
                 self.criterion_rank(scores[i-1], scores[i], label).backward(retain_graph=retain_graph)
-                
+
         # Update params.
         optimizer.step()
 
@@ -149,7 +149,7 @@ class Manager(object):
         optimize_class = True
         class_epoch = 0
         rank_epoch = 0
-        self.model.flip_apn_grads()
+        #self.model.flip_apn_grads()
 
         if self.args.cuda:
             self.model = self.model.cuda()
@@ -182,8 +182,8 @@ class Manager(object):
 
             if (accuracy - best_accuracy) < self.args.converge_acc_diff:
                 optimize_class = not optimize_class
-                self.model.flip_cnn_grads()
-                self.model.flip_apn_grads()
+                #self.model.flip_cnn_grads()
+                #self.model.flip_apn_grads()
             # Save best model, if required.
             if accuracy > best_accuracy:
                 print('Best model so far, Accuracy: %0.2f%% -> %0.2f%%' %
