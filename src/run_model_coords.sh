@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage:
-# ./run_model_coords.sh 3 1 vgg 30 ../data/CUBS 1e-4
+# ./run_model_coords.sh 3 1 vgg 30 ../data/CUBS 1e-7
 
 # This is hard-coded to prevent silly mistakes.
 declare -A NUM_OUTPUTS
