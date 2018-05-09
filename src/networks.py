@@ -73,7 +73,6 @@ class APN(nn.Module):
     def forward(self, x):
         params = self.regressor1(self.fc1(x))
         params = self.regressor2(self.fc2(params))
-        #params = self.negsqnorm(params)
         return params
 
 
