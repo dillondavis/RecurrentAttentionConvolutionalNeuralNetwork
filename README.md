@@ -2,7 +2,10 @@
 http://openaccess.thecvf.com/content_cvpr_2017/papers/Fu_Look_Closer_to_CVPR_2017_paper.pdf
 
 PyTorch Implementation of RACNN\
-***Does not replicate results***
+***Does not replicate results***\
+`src/networks.py` contain all networks implemented for the paper\
+`src/manager...` are training/eval managers for all networks\
+`src/run...` and `src/main...` are interfaces to run training]
 
 Run `./run_model_coords.sh 3 1 vgg 30 ../data/CUBS 1e-4` in `src` to train Attention Proposal Networks on best randomly generated subregions of interest.
 
